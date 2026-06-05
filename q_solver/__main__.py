@@ -6,8 +6,8 @@ import shutil
 import sys
 from pathlib import Path
 
-_REPO_ROOT = Path(__file__).parent.parent
-_SKILLS_SRC = _REPO_ROOT / "skills"
+_PKG_DIR = Path(__file__).parent
+_SKILLS_SRC = _PKG_DIR / "skills"
 _SKILLS_DST_ROOT = Path.home() / ".claude" / "skills"
 _CLAUDE_SETTINGS = Path.home() / ".claude" / "settings.json"
 _MCP_SERVER_NAME = "q-solver"
@@ -31,7 +31,7 @@ def _write_settings(settings: dict) -> None:
 
 
 def _mcp_server_path() -> str:
-    return str(_REPO_ROOT / "mcp" / "server.py")
+    return str(_PKG_DIR / "mcp" / "server.py")
 
 
 def _install_skills() -> None:
@@ -74,7 +74,7 @@ def _verify_mcp() -> None:
     result = subprocess.run(
         ["claude", "mcp", "list"],
         capture_output=True, text=True,
-        cwd=str(_REPO_ROOT),
+        cwd=str(_PKG_DIR),
     )
     if result.returncode != 0:
         print(f"  could not verify MCP: {result.stderr.strip()}", file=sys.stderr)
@@ -110,7 +110,7 @@ def cmd_install(args: list[str]) -> None:
         print("error: license key is required", file=sys.stderr)
         sys.exit(1)
 
-    sys.path.insert(0, str(_REPO_ROOT / "mcp"))
+    sys.path.insert(0, str(_PKG_DIR / "mcp"))
     import credential_store
     credential_store.setup_with_license(license_key)
     print(f"  license saved  -> {credential_store.CONFIG_PATH}")
@@ -130,7 +130,7 @@ def cmd_install(args: list[str]) -> None:
 
 
 def cmd_build(args: list[str]) -> None:
-    sys.path.insert(0, str(_REPO_ROOT / "mcp"))
+    sys.path.insert(0, str(_PKG_DIR / "mcp"))
     import credential_store, docker_manager
 
     license_key = credential_store.get_license()
@@ -150,7 +150,7 @@ def cmd_uninstall(args: list[str]) -> None:
 
 
 def cmd_status(args: list[str]) -> None:
-    sys.path.insert(0, str(_REPO_ROOT / "mcp"))
+    sys.path.insert(0, str(_PKG_DIR / "mcp"))
 
     for name in _SKILL_NAMES:
         dst = _SKILLS_DST_ROOT / name / "SKILL.md"

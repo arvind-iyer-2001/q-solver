@@ -18,3 +18,6 @@ q-solver = "q_solver.__main__:main"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["q_solver*"]
+
+[tool.setuptools.package-data]
+"q_solver" = ["mcp/*.py", "skills/**/*.md", "skills/**"]
