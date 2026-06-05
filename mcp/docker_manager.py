@@ -120,7 +120,7 @@ def run_q(code: str) -> dict:
     client = get_client()
     container = get_container(client)
 
-    b64 = base64.b64encode(code.encode()).decode()
+    b64 = base64.b64encode((code + "\n").encode()).decode()
     cmd = ["bash", "-c", f"base64 -d <<< '{b64}' | {Q_BINARY} -q"]
 
     result = container.exec_run(cmd, demux=True)

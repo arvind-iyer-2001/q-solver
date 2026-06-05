@@ -1,5 +1,6 @@
 """q-solver CLI — install skills, register MCP server, manage container."""
 from __future__ import annotations
+import getpass
 import json
 import shutil
 import sys
@@ -79,7 +80,7 @@ def cmd_install(args: list[str]) -> None:
 
     print("Q Solver — install\n")
     print(f"Get your KX license key at: {KX_INSTALL_URL}\n")
-    license_key = input("Enter LICENSE_KEY (base64): ").strip()
+    license_key = getpass.getpass("Enter LICENSE_KEY (base64): ").strip()
     if not license_key:
         print("error: license key is required", file=sys.stderr)
         sys.exit(1)
