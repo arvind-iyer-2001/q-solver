@@ -75,17 +75,16 @@ q-solver status              # show install state
 ## Project structure
 
 ```
-mcp/
-  server.py            # FastMCP server — registers run_q, get_container_status, reset_session, get_logs
-  docker_manager.py    # Docker image build, container lifecycle, q execution, license expiry
-  credential_store.py  # config.json read/write/delete, chmod 600
-  requirements.txt
 q_solver/
   __main__.py          # CLI: install/build/uninstall/status
-skills/
-  q-run/SKILL.md
-  q-solve/SKILL.md
-  q-debug/SKILL.md
+  mcp/
+    server.py          # FastMCP server — registers run_q, get_container_status, reset_session, get_logs
+    docker_manager.py  # Docker image build, container lifecycle, q execution, license expiry
+    credential_store.py  # config.json read/write/delete, chmod 600
+  skills/
+    q-run/SKILL.md
+    q-solve/SKILL.md
+    q-debug/SKILL.md
 docker/
   Dockerfile           # reference only — image built from memory in docker_manager.py
 tests/
