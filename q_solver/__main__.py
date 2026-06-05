@@ -64,8 +64,30 @@ def _register_mcp() -> None:
     if result.returncode != 0:
         print(f"  warning: claude mcp add failed: {result.stderr.strip()}", file=sys.stderr)
         print(f"  run manually: claude mcp add {_MCP_SERVER_NAME} {sys.executable} -- {_mcp_server_path()}")
-    else:
-        print(f"  MCP registered via claude mcp add")
+        return
+    print(f"  MCP registered via claude mcp add")
+    _verify_mcp()
+
+
+def _verify_mcp() -> None:
+    import subprocess
+    result = subprocess.run(
+        ["claude", "mcp", "list"],
+        capture_output=True, text=True,
+        cwd=str(_REPO_ROOT),
+    )
+    if result.returncode != 0:
+        print(f"  could not verify MCP: {result.stderr.strip()}", file=sys.stderr)
+        return
+    for line in result.stdout.splitlines():
+        if _MCP_SERVER_NAME in line:
+            if "Connected" in line or "✓" in line:
+                print(f"  MCP verified    -> connected")
+            else:
+                print(f"  MCP status      -> {line.strip()}")
+            return
+    print(f"  warning: {_MCP_SERVER_NAME} not found in 'claude mcp list'", file=sys.stderr)
+    print(f"  restart Claude Code for changes to take effect")
 
 
 def _unregister_mcp() -> None:
