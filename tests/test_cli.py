@@ -13,44 +13,41 @@ def fake_home(tmp_path, monkeypatch):
     return tmp_path
 
 
-def test_register_mcp_writes_to_settings(tmp_path, monkeypatch):
-    from q_solver.__main__ import _register_mcp, _CLAUDE_SETTINGS, _MCP_SERVER_NAME
+def test_register_mcp_calls_claude_mcp_add(monkeypatch):
+    import subprocess
     import q_solver.__main__ as cli
-    settings_path = tmp_path / ".claude" / "settings.json"
-    monkeypatch.setattr = lambda *a, **kw: None  # noqa — use direct attribute patch
-    cli._CLAUDE_SETTINGS = settings_path
-    _orig = cli._CLAUDE_SETTINGS
-    cli._CLAUDE_SETTINGS = settings_path
-    settings_path.parent.mkdir(parents=True)
+    completed = MagicMock()
+    completed.returncode = 0
+    completed.stderr = ""
+    calls = []
+    monkeypatch.setattr(subprocess, "run", lambda cmd, **kw: calls.append(cmd) or completed)
     cli._register_mcp()
-    data = json.loads(settings_path.read_text())
-    assert _MCP_SERVER_NAME in data["mcpServers"]
-    cli._CLAUDE_SETTINGS = _orig
+    assert any("mcp" in str(c) and "add" in str(c) for c in calls)
+    assert any(cli._MCP_SERVER_NAME in str(c) for c in calls)
 
 
-def test_register_mcp_preserves_existing_settings(tmp_path):
+def test_register_mcp_warns_on_failure(monkeypatch, capsys):
+    import subprocess
     import q_solver.__main__ as cli
-    settings_path = tmp_path / ".claude" / "settings.json"
-    settings_path.parent.mkdir(parents=True)
-    settings_path.write_text(json.dumps({"hooks": {"PreToolUse": []}}))
-    cli._CLAUDE_SETTINGS = settings_path
+    failed = MagicMock()
+    failed.returncode = 1
+    failed.stderr = "claude not found"
+    monkeypatch.setattr(subprocess, "run", lambda cmd, **kw: failed)
     cli._register_mcp()
-    data = json.loads(settings_path.read_text())
-    assert "hooks" in data
-    assert cli._MCP_SERVER_NAME in data["mcpServers"]
+    out = capsys.readouterr()
+    assert "warning" in out.err or "manually" in out.err
 
 
-def test_unregister_mcp_removes_server(tmp_path):
+def test_unregister_mcp_calls_claude_mcp_remove(monkeypatch):
+    import subprocess
     import q_solver.__main__ as cli
-    settings_path = tmp_path / ".claude" / "settings.json"
-    settings_path.parent.mkdir(parents=True)
-    settings_path.write_text(json.dumps({
-        "mcpServers": {"q-solver": {"command": "python", "args": []}}
-    }))
-    cli._CLAUDE_SETTINGS = settings_path
+    completed = MagicMock()
+    completed.returncode = 0
+    calls = []
+    monkeypatch.setattr(subprocess, "run", lambda cmd, **kw: calls.append(cmd) or completed)
     cli._unregister_mcp()
-    data = json.loads(settings_path.read_text())
-    assert "q-solver" not in data.get("mcpServers", {})
+    assert any("remove" in str(c) for c in calls)
+    assert any(cli._MCP_SERVER_NAME in str(c) for c in calls)
 
 
 def test_install_skills_copies_files(tmp_path, monkeypatch):

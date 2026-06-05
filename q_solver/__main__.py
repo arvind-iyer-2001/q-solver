@@ -56,23 +56,26 @@ def _uninstall_skills() -> None:
 
 
 def _register_mcp() -> None:
-    settings = _read_settings()
-    mcp_servers = settings.setdefault("mcpServers", {})
-    mcp_servers[_MCP_SERVER_NAME] = {
-        "command": sys.executable,
-        "args": [_mcp_server_path()],
-        "env": {},
-    }
-    _write_settings(settings)
-    print(f"  MCP registered -> {_CLAUDE_SETTINGS}")
+    import subprocess
+    result = subprocess.run(
+        ["claude", "mcp", "add", _MCP_SERVER_NAME, sys.executable, "--", _mcp_server_path()],
+        capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        print(f"  warning: claude mcp add failed: {result.stderr.strip()}", file=sys.stderr)
+        print(f"  run manually: claude mcp add {_MCP_SERVER_NAME} {sys.executable} -- {_mcp_server_path()}")
+    else:
+        print(f"  MCP registered via claude mcp add")
 
 
 def _unregister_mcp() -> None:
-    settings = _read_settings()
-    if _MCP_SERVER_NAME in settings.get("mcpServers", {}):
-        del settings["mcpServers"][_MCP_SERVER_NAME]
-        _write_settings(settings)
-        print(f"  MCP removed    -> {_CLAUDE_SETTINGS}")
+    import subprocess
+    result = subprocess.run(
+        ["claude", "mcp", "remove", _MCP_SERVER_NAME, "-s", "local"],
+        capture_output=True, text=True,
+    )
+    if result.returncode == 0:
+        print(f"  MCP removed via claude mcp remove")
 
 
 def cmd_install(args: list[str]) -> None:
