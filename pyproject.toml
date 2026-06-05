@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "q-solver"
+version = "0.1.0"
+description = "Claude Code skill + MCP server for solving q/kdb+ code"
+requires-python = ">=3.10"
+dependencies = [
+    "mcp>=1.0.0",
+    "docker>=7.0.0",
+]
+
+[project.scripts]
+q-solver = "q_solver.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["q_solver*"]
