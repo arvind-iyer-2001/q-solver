@@ -36,8 +36,8 @@ The CLI (`q-solver install`) handles all one-time interactive setup. The MCP ser
 ## Install
 
 ```bash
-git clone https://github.com/arvind-iyer-2001/q-solver ~/q-solver
-cd ~/q-solver
+git clone https://github.com/arvind-iyer-2001/q-solver
+cd q-solver
 pip install -e .
 q-solver install
 ```
