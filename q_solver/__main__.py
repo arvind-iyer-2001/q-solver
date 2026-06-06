@@ -122,7 +122,7 @@ def cmd_install(args: list[str]) -> None:
         print("\nBuilding Docker image (this takes a few minutes)...")
         import docker_manager
         docker_manager.setup_container(license_key)
-        print("  container started -> q-solver")
+        print("  container started -> kdb-x-runner")
 
     print("\nDone. Restart Claude Code, then try:\n  /q-run 1+1")
     if not build:

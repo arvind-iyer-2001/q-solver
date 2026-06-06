@@ -19,12 +19,14 @@ Claude Code skill
     ↓  (calls MCP tool)
 q_solver/mcp/server.py  (FastMCP stdio server)
     ↓  (calls docker-py)
-Docker container  (ubuntu:22.04 + kdb-x)
+kdb-x-runner container  (qtpy6969/kdb-x-runner — ubuntu:22.04 + kdb-x binary)
     ↓  (exec q binary)
 /root/.kx/bin/q
 ```
 
 The CLI (`q-solver install`) handles all one-time interactive setup. The MCP server is a stdio subprocess with no terminal access — it only executes q code.
+
+The `kdb-x-runner` container is a pre-built image ([`qtpy6969/kdb-x-runner`](https://hub.docker.com/r/qtpy6969/kdb-x-runner)) with the kdb-x binary installed but no license. `q-solver build` pulls the image and injects your license key (`kc.lic`) at runtime — no slow local build required.
 
 ## Prerequisites
 
@@ -50,7 +52,7 @@ q-solver install --build
 3. Copy skills to `~/.claude/skills/`
 4. Register the MCP server via `claude mcp add`
 5. Verify the connection with `claude mcp list`
-6. Build the Docker image (takes a few minutes)
+6. Pull `qtpy6969/kdb-x-runner` from Docker Hub and inject your license (fast — no local build)
 
 Restart Claude Code, then test:
 
@@ -83,7 +85,7 @@ q_solver/
     q-solve/SKILL.md
     q-debug/SKILL.md
 docker/
-  Dockerfile           # reference only — image built from memory in docker_manager.py
+  base/Dockerfile      # multi-stage build for qtpy6969/kdb-x-runner (license stripped)
 tests/
   test_credential_store.py
   test_docker_manager.py
@@ -96,7 +98,7 @@ tests/
 pytest tests/ -v
 ```
 
-30 tests, all passing. Docker is mocked in tests — no container required to run the test suite.
+31 tests, all passing. Docker is mocked in tests — no container required to run the test suite.
 
 ## MCP tools
 

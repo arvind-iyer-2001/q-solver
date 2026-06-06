@@ -1,22 +1,14 @@
 import base64
 import io
+import tarfile
 import docker
 import docker.errors
-from credential_store import delete_config, KX_INSTALL_URL
+from credential_store import delete_config, get_license, KX_INSTALL_URL
 
-IMAGE_NAME = "q-solver:latest"
-CONTAINER_NAME = "q-solver"
+BASE_IMAGE = "qtpy6969/kdb-x-runner:latest"
+CONTAINER_NAME = "kdb-x-runner"
 Q_BINARY = "/root/.kx/bin/q"
 LICENSE_EXPIRY_SIGNALS = ["'licexp", "license expired"]
-
-DOCKERFILE_TEMPLATE = (
-    "FROM ubuntu:22.04\n"
-    "ENV DEBIAN_FRONTEND=noninteractive\n"
-    "ENV TERM=xterm\n"
-    "RUN apt-get update && apt-get install -y curl unzip ncurses-bin && "
-    "curl -sLO https://portal.dl.kx.com/assets/raw/kdb-x/install_kdb/~latest~/install_kdb.sh && "
-    "bash install_kdb.sh -y --b64lic '{license_key}'\n"
-)
 
 
 def get_client() -> docker.DockerClient:
@@ -31,7 +23,7 @@ def get_client() -> docker.DockerClient:
 
 def image_exists(client: docker.DockerClient) -> bool:
     try:
-        client.images.get(IMAGE_NAME)
+        client.images.get(BASE_IMAGE)
         return True
     except docker.errors.ImageNotFound:
         return False
@@ -44,33 +36,40 @@ def get_container(client: docker.DockerClient):
         return None
 
 
-def build_image(license_key: str) -> None:
-    client = get_client()
-    dockerfile = DOCKERFILE_TEMPLATE.format(license_key=license_key)
-    fileobj = io.BytesIO(dockerfile.encode())
-    try:
-        client.images.build(fileobj=fileobj, tag=IMAGE_NAME, rm=True)
-    except docker.errors.BuildError as e:
-        build_log = "\n".join(
-            line.get("stream", "") for line in e.build_log if "stream" in line
-        )
-        raise RuntimeError(f"Image build failed:\n{build_log}")
+def pull_base_image(client: docker.DockerClient) -> None:
+    client.images.pull(BASE_IMAGE)
 
 
-def setup_container(license_key: str) -> None:
-    build_image(license_key)
-    client = get_client()
-    existing = get_container(client)
-    if existing:
-        existing.stop()
-        existing.remove()
-    client.containers.run(
-        IMAGE_NAME,
+def inject_license(container, license_key: str) -> None:
+    lic_bytes = base64.b64decode(license_key)
+    tar_stream = io.BytesIO()
+    with tarfile.open(fileobj=tar_stream, mode='w') as tar:
+        info = tarfile.TarInfo(name='kc.lic')
+        info.size = len(lic_bytes)
+        tar.addfile(info, io.BytesIO(lic_bytes))
+    tar_stream.seek(0)
+    container.put_archive('/root/.kx/', tar_stream)
+
+
+def _start_container(client: docker.DockerClient):
+    return client.containers.run(
+        BASE_IMAGE,
         name=CONTAINER_NAME,
         command="tail -f /dev/null",
         detach=True,
         restart_policy={"Name": "unless-stopped"},
     )
+
+
+def setup_container(license_key: str) -> None:
+    client = get_client()
+    pull_base_image(client)
+    existing = get_container(client)
+    if existing:
+        existing.stop()
+        existing.remove()
+    container = _start_container(client)
+    inject_license(container, license_key)
 
 
 def ensure_container_running() -> None:
@@ -82,13 +81,14 @@ def ensure_container_running() -> None:
         )
     container = get_container(client)
     if container is None:
-        client.containers.run(
-            IMAGE_NAME,
-            name=CONTAINER_NAME,
-            command="tail -f /dev/null",
-            detach=True,
-            restart_policy={"Name": "unless-stopped"},
-        )
+        license_key = get_license()
+        if not license_key:
+            raise RuntimeError(
+                "Q Solver not initialized. Run 'q-solver install' to set up.\n"
+                f"Get your license at: {KX_INSTALL_URL}"
+            )
+        container = _start_container(client)
+        inject_license(container, license_key)
     elif container.status != "running":
         container.start()
 
@@ -104,10 +104,6 @@ def _handle_license_expiry() -> None:
     if container:
         container.stop()
         container.remove()
-    try:
-        client.images.remove(IMAGE_NAME, force=True)
-    except docker.errors.ImageNotFound:
-        pass
     delete_config()
     raise RuntimeError(
         "KX license has expired. Run 'q-solver install' to re-enter your license.\n"
@@ -130,7 +126,6 @@ def run_q(code: str) -> dict:
 
     if _is_license_expired(stderr) or _is_license_expired(stdout):
         _handle_license_expiry()
-        # If _handle_license_expiry didn't raise (e.g. in tests), retry
         result = container.exec_run(cmd, demux=True)
         stdout = (result.output[0] or b"").decode("utf-8", errors="replace")
         stderr = (result.output[1] or b"").decode("utf-8", errors="replace")
