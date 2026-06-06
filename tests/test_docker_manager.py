@@ -156,9 +156,23 @@ def test_ensure_container_running_starts_stopped_container(mock_client):
     container.start.assert_called_once()
 
 
-def test_ensure_container_running_creates_container_when_missing(mock_client):
+def test_ensure_container_running_creates_container_when_missing(mock_client, monkeypatch):
     import docker_manager
     mock_client.images.get.return_value = MagicMock()
     mock_client.containers.get.side_effect = docker.errors.NotFound("nope")
+    monkeypatch.setattr(docker_manager, "get_license", lambda: "dGVzdA==")
+    monkeypatch.setattr(docker_manager, "inject_license", lambda c, k: None)
     docker_manager.ensure_container_running()
     mock_client.containers.run.assert_called_once()
+
+
+def test_handle_license_expiry_removes_container_not_image(mock_client, monkeypatch):
+    import docker_manager
+    container = MagicMock()
+    mock_client.containers.get.return_value = container
+    monkeypatch.setattr(docker_manager, "delete_config", lambda: None)
+    with pytest.raises(RuntimeError, match="license has expired"):
+        docker_manager._handle_license_expiry()
+    container.stop.assert_called_once()
+    container.remove.assert_called_once()
+    mock_client.images.remove.assert_not_called()
