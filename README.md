@@ -17,7 +17,7 @@ Three Claude Code skills backed by a Python MCP server that manages a Docker con
 ```
 Claude Code skill
     ↓  (calls MCP tool)
-mcp/server.py  (FastMCP stdio server)
+q_solver/mcp/server.py  (FastMCP stdio server)
     ↓  (calls docker-py)
 Docker container  (ubuntu:22.04 + kdb-x)
     ↓  (exec q binary)
@@ -35,25 +35,22 @@ The CLI (`q-solver install`) handles all one-time interactive setup. The MCP ser
 
 ## Install
 
+Make sure Python 3.10+ is active (`python --version`), then:
+
 ```bash
 git clone https://github.com/arvind-iyer-2001/q-solver
 cd q-solver
-pip install -e .
-q-solver install
+python -m pip install -e .
+q-solver install --build
 ```
 
-`install` will:
+`install --build` will:
 1. Prompt for your KX license key (hidden input)
 2. Save it to `~/.config/q-solver/config.json` (chmod 600)
 3. Copy skills to `~/.claude/skills/`
 4. Register the MCP server via `claude mcp add`
 5. Verify the connection with `claude mcp list`
-
-Then build the Docker image (takes a few minutes):
-
-```bash
-q-solver build
-```
+6. Build the Docker image (takes a few minutes)
 
 Restart Claude Code, then test:
 
@@ -114,4 +111,4 @@ pytest tests/ -v
 
 - The `/` character in q's `+/x` (fold) is misinterpreted as a comment when code is fed via stdin pipeline. Use `sum x` instead when writing q code through this tool.
 - MCP registration uses `claude mcp add` (writes to `.claude.json`) not `settings.json` — the two locations are different.
-- `q-solver install` must be re-run after `q-solver uninstall` to rebuild the Docker image.
+- After `q-solver uninstall`, run `q-solver install --build` to reinstall everything including the Docker image.
