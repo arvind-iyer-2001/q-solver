@@ -20,4 +20,4 @@ where = ["."]
 include = ["q_solver*"]
 
 [tool.setuptools.package-data]
-"q_solver" = ["mcp/*.py", "skills/**/*.md", "skills/**"]
+"q_solver" = ["mcp/*.py", "skills/**/*.md", "skills/**", "docker/Dockerfile"]

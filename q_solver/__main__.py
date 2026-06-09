@@ -143,6 +143,27 @@ def cmd_build(args: list[str]) -> None:
     print("Done. Container q-solver is running.")
 
 
+def cmd_publish(args: list[str]) -> None:
+    tag = None
+    for i, a in enumerate(args):
+        if a == "--tag" and i + 1 < len(args):
+            tag = args[i + 1]
+
+    sys.path.insert(0, str(_PKG_DIR / "mcp"))
+    import credential_store, docker_manager
+
+    license_key = credential_store.get_license()
+    if not license_key:
+        print("error: no license key stored. Run 'q-solver install' first.", file=sys.stderr)
+        sys.exit(1)
+
+    target = tag or docker_manager.BASE_IMAGE
+    print(f"Building multi-arch image ({target}) for linux/amd64 + linux/arm64...")
+    print("This takes 10-15 minutes. Requires: docker login, docker buildx.\n")
+    docker_manager.build_and_push_multiarch(license_key, tag=target)
+    print(f"\nPushed: {target}")
+
+
 def cmd_uninstall(args: list[str]) -> None:
     _uninstall_skills()
     _unregister_mcp()
@@ -178,10 +199,11 @@ def main() -> None:
         print("Usage: q-solver <command>")
         print()
         print("Commands:")
-        print("  install [--build]  install skills + MCP, prompt for license key")
-        print("  build              build Docker image using stored license key")
-        print("  uninstall          remove skills and MCP registration")
-        print("  status             show install status")
+        print("  install [--build]        install skills + MCP, prompt for license key")
+        print("  build                    build Docker image using stored license key")
+        print("  publish [--tag TAG]      build + push multi-arch image to Docker Hub")
+        print("  uninstall                remove skills and MCP registration")
+        print("  status                   show install status")
         return
 
     cmd = sys.argv[1]
@@ -189,6 +211,7 @@ def main() -> None:
     dispatch = {
         "install": cmd_install,
         "build": cmd_build,
+        "publish": cmd_publish,
         "uninstall": cmd_uninstall,
         "status": cmd_status,
     }

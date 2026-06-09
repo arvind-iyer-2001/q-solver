@@ -1,11 +1,14 @@
 import base64
 import io
+import subprocess
 import tarfile
+from pathlib import Path
 import docker
 import docker.errors
 from credential_store import delete_config, get_license, KX_INSTALL_URL
 
 BASE_IMAGE = "qtpy6969/kdb-x-runner:latest"
+_DOCKERFILE_DIR = Path(__file__).parent.parent / "docker"
 CONTAINER_NAME = "kdb-x-runner"
 Q_BINARY = "/root/.kx/bin/q"
 LICENSE_EXPIRY_SIGNALS = ["'licexp", "license expired"]
@@ -38,6 +41,27 @@ def get_container(client: docker.DockerClient):
 
 def pull_base_image(client: docker.DockerClient) -> None:
     client.images.pull(BASE_IMAGE)
+
+
+def build_and_push_multiarch(license_key: str, tag: str = BASE_IMAGE) -> None:
+    """Build a multi-arch image (linux/amd64 + linux/arm64) and push to Docker Hub.
+    Requires: docker login, docker buildx with a multi-arch builder active."""
+    result = subprocess.run(
+        ["docker", "buildx", "create", "--use", "--name", "q-solver-builder"],
+        capture_output=True, text=True,
+    )
+    # ignore error if builder already exists
+    subprocess.run(
+        [
+            "docker", "buildx", "build",
+            "--platform", "linux/amd64,linux/arm64",
+            "--build-arg", f"B64LIC={license_key}",
+            "-t", tag,
+            "--push",
+            str(_DOCKERFILE_DIR),
+        ],
+        check=True,
+    )
 
 
 def inject_license(container, license_key: str) -> None:
