@@ -1,5 +1,8 @@
 # q-solver
 
+[![CI](https://github.com/arvind-iyer-2001/q-solver/actions/workflows/ci.yml/badge.svg)](https://github.com/arvind-iyer-2001/q-solver/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 Claude Code skill + MCP server for solving, running, and debugging q/kdb+ code using a persistent Docker container.
 
 ## What it does
