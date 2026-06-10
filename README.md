@@ -51,10 +51,11 @@ q-solver install --build
 1. Prompt for your KX license key (hidden input)
 2. Save it to `~/.config/q-solver/config.json` (chmod 600)
 3. Copy skills to `~/.claude/skills/`
-4. Pull `qtpy6969/q-solver-mcp` from Docker Hub
-5. Register the MCP server via `claude mcp add` (runs the pulled image, mounting `/var/run/docker.sock` and `~/.config/q-solver`)
-6. Verify the connection with `claude mcp list`
-7. Pull `qtpy6969/kdb-x-runner` from Docker Hub and inject your license (fast — no local build)
+4. Check for the `q-knowledge@kx-skills` plugin (q/kdb+ idiom + error reference) and install it from the kx-skills marketplace if missing
+5. Pull `qtpy6969/q-solver-mcp` from Docker Hub
+6. Register the MCP server via `claude mcp add` (runs the pulled image, mounting `/var/run/docker.sock` and `~/.config/q-solver`)
+7. Verify the connection with `claude mcp list`
+8. Pull `qtpy6969/kdb-x-runner` from Docker Hub and inject your license (fast — no local build)
 
 Restart Claude Code, then test:
 
@@ -128,7 +129,7 @@ uv run pre-commit install
 
 ## Known quirks
 
-- The `/` character in q's `+/x` (fold) is misinterpreted as a comment when code is fed via stdin pipeline. Use `sum x` instead when writing q code through this tool.
+- A bare monadic `<verb><adverb><operand>` (e.g. `+/1 2 3`, `&/1 2 3`, `+\1 2 3`) is misparsed when code is fed via stdin pipeline, throwing a spurious `'type`/`'/` error. Fix: parenthesize or bracket — `(+/)1 2 3` or `+/[1 2 3]` — or use named equivalents (`sum`, `prd`, `sums`, etc.). Dyadic forms and `each`/`'` are unaffected. The skills handle this automatically; see `CLAUDE.md` "Known pitfall" for details.
 - MCP registration uses `claude mcp add` (writes to `.claude.json`) not `settings.json` — the two locations are different.
 - After `q-solver uninstall`, run `q-solver install --build` to reinstall everything including the Docker image.
 - The MCP server container mounts `/var/run/docker.sock` so it can manage `kdb-x-runner` as a sibling container. This grants it root-equivalent control over the host's Docker daemon — standard for Docker-management MCP servers, but worth knowing.
