@@ -27,7 +27,11 @@ Identify:
 
 For `'type` / `'rank` / `'assign` / `'length` / `'domain` etc., load `q-knowledge:q`'s `references/common-errors.md` for the cause/fix table.
 
-**Known parser quirk:** if the code has a **bare monadic `<verb><adverb><operand>`** at the start of an expression (e.g. `+/1 2 3`, `&/1 2 3`, `+\1 2 3`) and the failure is a `'/` (or `'type`) error that doesn't match the code's logic, this is a known kdb+ parser quirk for that token shape via `run_q` — not a bug in the code. Fix by parenthesizing/bracketing: `(+/)1 2 3` or `+/[1 2 3]`. Dyadic forms (`x f/ y`, `x f/: y`) and `each`/`'` are unaffected. See CLAUDE.md "Known pitfall".
+**Known parser quirks:** if the code has a **bare monadic `<verb><adverb><operand>`** at the start of an expression (e.g. `+/1 2 3`, `&/1 2 3`, `+\1 2 3`, `,/(...)`) and the failure is a `'/` (or `'type`) error that doesn't match the code's logic, this is a known kdb+ parser quirk for that token shape via `run_q` — not a bug in the code. Fix by parenthesizing/bracketing: `(+/)1 2 3` or `+/[1 2 3]`. Dyadic forms (`x f/ y`, `x f/: y`) and `each`/`'` are unaffected.
+
+Same for **bare monadic `,x` (enlist) anywhere** — `,5`, `(,5)`, or inside a called function body — fails with `',`; **parens don't fix it**, only `enlist x` does. Dyadic `,` (`x,y`) is fine.
+
+**Truncated-output red flag:** if `stdout` looks empty/cut-off and `stderr` shows a *single* `'/` or `',` error pointing at code that looks correct, the script likely halted early — search the *whole* script (including function bodies that get called) for any bare `,x` or unparenthesized fold/scan/raze adverb, not just the line in the error. See CLAUDE.md "Known pitfall".
 
 ### Step 2 — Propose fix
 

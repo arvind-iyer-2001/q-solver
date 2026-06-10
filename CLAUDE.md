@@ -49,17 +49,37 @@ The `\n` appended before encoding is required — q needs a trailing newline to 
 
 This temp-file approach (vs. the old `base64 -d <<< ... | q -q` pipe) makes `exit_code` a reliable error signal: q errors (`'type`, `'rank`, `'/`, etc.) now produce `exit_code 1` and land on stderr; success is `exit_code 0`. With the old pipe approach, `exit_code` was *always* 0 regardless of errors.
 
-## Known pitfall: bare monadic `<verb><adverb><operand>` throws `'/` / `'type`
+**Script halts on first error**: `q file.q -q` loads the script top-to-bottom; an uncaught error on any line aborts all remaining lines — no further stdout is produced. Combined with the parser quirks below, a single misparsing token *anywhere* in a multi-statement script (even inside a called function body) truncates everything after it. See "Known pitfall".
 
-A **bare monadic `<verb><adverb><operand>`** at the start of an expression — `+/1 2 3`, `&/1 2 3`, `+\1 2 3`, `*/1 2 3`, etc. — throws a spurious `'/` (or `'type`) parse error (`exit_code 1`).
+## Known pitfall: monadic `/`, `\`, `,` (overloaded operator chars) misparse — `'/`, `',`, `'type` errors
+
+### `/`-fold, `\`-scan, `,/`-raze: bare monadic `<verb><adverb><operand>`
+
+A **bare monadic `<verb><adverb><operand>`** at the start of an expression — `+/1 2 3`, `&/1 2 3`, `+\1 2 3`, `*/1 2 3`, `,/(1 2;3 4)`, etc. — throws a spurious `'/` (or `'type`) parse error (`exit_code 1`).
 
 **This is NOT a `run_q`-pipeline artifact** — verified empirically (2026-06-11) on kdb+ 5.0 (`.z.K`=`5f`, `.z.k`=`2026.05.01`): the identical error reproduces via stdin pipe (`... | q -q`), script-file execution (`q file.q -q`), and even under a pseudo-tty (`script -qec "q -q" /dev/null`). It appears to be an inherent kdb+ 5.0 parser characteristic for this token shape when not driven by an interactive keystroke-by-keystroke reader (linenoise) — there is no fix available at the `run_q`/wrapper level.
 
-**Fix: parenthesize or bracket the verb-adverb** — `(+/)1 2 3` or `+/[1 2 3]` instead of `+/1 2 3`. This works for *any* verb/adverb combo, including custom dyadic functions in folds/scans (`{x,", ",y}/strs`), so it's the general fix. Named equivalents (`sum`/`prd`/`min`/`max`/`sums`/`prds`/`mins`/`maxs`/`deltas`) also work for the built-in cases.
+**Fix: parenthesize or bracket the verb-adverb** — `(+/)1 2 3` or `+/[1 2 3]` instead of `+/1 2 3`. This works for *any* verb/adverb combo, including custom dyadic functions in folds/scans (`{x,", ",y}/strs`), so it's the general fix. Named equivalents (`sum`/`prd`/`min`/`max`/`sums`/`prds`/`mins`/`maxs`/`deltas`/`raze`) also work for the built-in cases.
 
 **Unaffected:** dyadic adverb forms (`x f/ y`, `x f/: y`, `x f\: y`) and `each`/`'`.
 
-The `q-solve`/`q-debug`/`q-run` skills document this caveat inline; `q-knowledge:q` (idiom/error reference) is unaware of it, so don't rely on its adverb examples verbatim through `run_q`.
+### `,` (enlist): bare monadic `,x` anywhere — parens do NOT help
+
+A **monadic `,x`** (enlist) — `,5`, `,1 2 3`, `(,5)`, `,()`, a table column `c:,5`, or even inside a *called* lambda body (`{,x}5`) — throws the same `'<,>` parse error (`exit_code 1`).
+
+Verified empirically (2026-06-11): unlike the `/`-fold case, **parenthesizing does not fix this** — `(,5)` still errors. Pre-existing in the old pipe approach too (not introduced by the temp-file rewrite), but the old approach masked it (REPL continued past the error with `exit_code 0`).
+
+**Fix: use `enlist x` instead of `,x`** — always, in every position. `enlist` is a drop-in replacement with identical semantics.
+
+**Unaffected:** dyadic `,` (`x,y`, `1,2`, `{x,1}5`).
+
+### Practical impact: one bad token kills the rest of the script
+
+Because script execution halts on the first uncaught error, and `,x`/bare-`/`-folds/`,/`-raze are everyday idiomatic q, **a single occurrence anywhere — even deep inside a called function — silently truncates all output after it**, leaving only that one error on stderr (`exit_code 1`). Example: `1+1\n,5\n2+2` -> stdout `"2\n"` only; line 3 never runs.
+
+**Recommendation for AI-generated q code via `run_q`:** always use `enlist x` (never `,x`), always use `raze x` (never `,/x`), and always parenthesize/bracket/name fold-scan adverbs (`(+/)x`, `+/[x]`, `sum x` — never bare `+/x`).
+
+The `q-solve`/`q-debug`/`q-run` skills document these caveats inline; `q-knowledge:q` (idiom/error reference) is unaware of them, so don't rely on its `,`/adverb examples verbatim through `run_q`.
 
 ## MCP registration
 

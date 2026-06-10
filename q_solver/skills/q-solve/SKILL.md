@@ -33,7 +33,11 @@ Present the generated test cases to the user with a one-line explanation for eac
 
 Load the `q-knowledge:q` skill for idiomatic q (vectorization, type traps, error patterns). Be idiomatic: use q primitives and vector operations. Avoid unnecessary loops.
 
-**Known parser quirk:** `run_q` misparses a **bare monadic `<verb><adverb><operand>`** at the start of an expression (e.g. `+/1 2 3`, `&/1 2 3`, `+\1 2 3`) — throws a spurious `'/` (or `'type`) error (`exit_code 1`). Dyadic forms (`x f/ y`, `x f/: y`, `x f\: y`) and `each`/`'` are unaffected. Fix by **parenthesizing or bracketing the verb-adverb**: `(+/)1 2 3` or `+/[1 2 3]` instead of `+/1 2 3` — works for any verb/adverb combo, including custom dyadic functions in folds (`{x,", ",y}/strs`). Named equivalents (`sum`/`prd`/`min`/`max`/`sums`/`prds`/`mins`/`maxs`/`deltas`) also work. See CLAUDE.md "Known pitfall".
+**Known parser quirks:** `run_q` misparses a **bare monadic `<verb><adverb><operand>`** at the start of an expression (e.g. `+/1 2 3`, `&/1 2 3`, `+\1 2 3`, `,/(1 2;3 4)`) — throws a spurious `'/` (or `'type`) error (`exit_code 1`). Dyadic forms (`x f/ y`, `x f/: y`, `x f\: y`) and `each`/`'` are unaffected. Fix by **parenthesizing or bracketing the verb-adverb**: `(+/)1 2 3` or `+/[1 2 3]` instead of `+/1 2 3` — works for any verb/adverb combo, including custom dyadic functions in folds (`{x,", ",y}/strs`). Named equivalents (`sum`/`prd`/`min`/`max`/`sums`/`prds`/`mins`/`maxs`/`deltas`/`raze`) also work.
+
+Separately, **bare monadic `,x` (enlist) anywhere** — even parenthesized (`(,5)`), even inside a called function body (`{,x}5`) — throws `',` (`exit_code 1`); **parens do NOT fix this**. Always write **`enlist x`** instead of `,x`. Dyadic `,` (`x,y`) is unaffected.
+
+Either of these, *anywhere* in your script (including inside function bodies you call), **halts execution at that point — all later output is lost**. So when generating solutions: always `enlist x` (never `,x`), always `raze x` (never `,/x`), always `(+/)x`/`+/[x]`/`sum x` (never bare `+/x`). See CLAUDE.md "Known pitfall".
 
 ### Step 3 — Run
 
