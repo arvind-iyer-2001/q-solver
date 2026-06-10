@@ -15,9 +15,15 @@ dependencies = [
 [project.scripts]
 q-solver = "q_solver.__main__:main"
 
+[dependency-groups]
+dev = [
+    "pytest",
+    "pytest-mock",
+]
+
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["q_solver*"]
 
 [tool.setuptools.package-data]
-"q_solver" = ["mcp/*.py", "skills/**/*.md", "skills/**", "docker/Dockerfile"]
+"q_solver" = ["mcp/*.py", "skills/**/*.md", "skills/**", "docker/Dockerfile", "docker/Dockerfile.mcp"]

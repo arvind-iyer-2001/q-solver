@@ -1,7 +1,6 @@
 """q-solver CLI — install skills, register MCP server, manage container."""
 from __future__ import annotations
 import getpass
-import json
 import shutil
 import sys
 from pathlib import Path
@@ -9,29 +8,34 @@ from pathlib import Path
 _PKG_DIR = Path(__file__).parent
 _SKILLS_SRC = _PKG_DIR / "skills"
 _SKILLS_DST_ROOT = Path.home() / ".claude" / "skills"
-_CLAUDE_SETTINGS = Path.home() / ".claude" / "settings.json"
 _MCP_SERVER_NAME = "q-solver"
 _SKILL_NAMES = ["q-solve", "q-run", "q-debug"]
 
 KX_INSTALL_URL = "https://developer.kx.com/products/kdb-x/install"
 
 
-def _read_settings() -> dict:
-    if _CLAUDE_SETTINGS.exists():
-        try:
-            return json.loads(_CLAUDE_SETTINGS.read_text(encoding="utf-8"))
-        except json.JSONDecodeError:
-            return {}
-    return {}
+def _mcp_registered() -> bool:
+    import subprocess
+    result = subprocess.run(
+        ["claude", "mcp", "list"],
+        capture_output=True, text=True,
+        cwd=str(_PKG_DIR),
+    )
+    if result.returncode != 0:
+        return False
+    return any(_MCP_SERVER_NAME in line for line in result.stdout.splitlines())
 
 
-def _write_settings(settings: dict) -> None:
-    _CLAUDE_SETTINGS.parent.mkdir(parents=True, exist_ok=True)
-    _CLAUDE_SETTINGS.write_text(json.dumps(settings, indent=2), encoding="utf-8")
-
-
-def _mcp_server_path() -> str:
-    return str(_PKG_DIR / "mcp" / "server.py")
+def _mcp_docker_args() -> list[str]:
+    sys.path.insert(0, str(_PKG_DIR / "mcp"))
+    import docker_manager
+    config_dir = str(Path.home() / ".config" / "q-solver")
+    return [
+        "run", "-i", "--rm",
+        "-v", "/var/run/docker.sock:/var/run/docker.sock",
+        "-v", f"{config_dir}:/root/.config/q-solver",
+        docker_manager.MCP_IMAGE,
+    ]
 
 
 def _install_skills() -> None:
@@ -57,15 +61,16 @@ def _uninstall_skills() -> None:
 
 def _register_mcp() -> None:
     import subprocess
+    docker_args = _mcp_docker_args()
     result = subprocess.run(
-        ["claude", "mcp", "add", _MCP_SERVER_NAME, sys.executable, "--", _mcp_server_path()],
+        ["claude", "mcp", "add", _MCP_SERVER_NAME, "docker", "--", *docker_args],
         capture_output=True, text=True,
     )
     if result.returncode != 0:
         print(f"  warning: claude mcp add failed: {result.stderr.strip()}", file=sys.stderr)
-        print(f"  run manually: claude mcp add {_MCP_SERVER_NAME} {sys.executable} -- {_mcp_server_path()}")
+        print(f"  run manually: claude mcp add {_MCP_SERVER_NAME} docker -- {' '.join(docker_args)}")
         return
-    print(f"  MCP registered via claude mcp add")
+    print(f"  MCP registered via claude mcp add (docker)")
     _verify_mcp()
 
 
@@ -111,16 +116,23 @@ def cmd_install(args: list[str]) -> None:
         sys.exit(1)
 
     sys.path.insert(0, str(_PKG_DIR / "mcp"))
-    import credential_store
+    import credential_store, docker_manager
     credential_store.setup_with_license(license_key)
     print(f"  license saved  -> {credential_store.CONFIG_PATH}")
 
     _install_skills()
+
+    print("\nPulling MCP server image...")
+    try:
+        docker_manager.pull_mcp_image(docker_manager.get_client())
+        print(f"  pulled -> {docker_manager.MCP_IMAGE}")
+    except Exception as e:
+        print(f"  warning: could not pull MCP image: {e}", file=sys.stderr)
+
     _register_mcp()
 
     if build:
         print("\nBuilding Docker image (this takes a few minutes)...")
-        import docker_manager
         docker_manager.setup_container(license_key)
         print("  container started -> kdb-x-runner")
 
@@ -164,6 +176,22 @@ def cmd_publish(args: list[str]) -> None:
     print(f"\nPushed: {target}")
 
 
+def cmd_publish_mcp(args: list[str]) -> None:
+    tag = None
+    for i, a in enumerate(args):
+        if a == "--tag" and i + 1 < len(args):
+            tag = args[i + 1]
+
+    sys.path.insert(0, str(_PKG_DIR / "mcp"))
+    import docker_manager
+
+    target = tag or docker_manager.MCP_IMAGE
+    print(f"Building multi-arch MCP server image ({target}) for linux/amd64 + linux/arm64...")
+    print("Requires: docker login, docker buildx.\n")
+    docker_manager.build_and_push_mcp_image(tag=target)
+    print(f"\nPushed: {target}")
+
+
 def cmd_uninstall(args: list[str]) -> None:
     _uninstall_skills()
     _unregister_mcp()
@@ -178,8 +206,7 @@ def cmd_status(args: list[str]) -> None:
         state = "installed" if dst.exists() else "not installed"
         print(f"  skill {name}: {state}")
 
-    settings = _read_settings()
-    mcp_state = "registered" if _MCP_SERVER_NAME in settings.get("mcpServers", {}) else "not registered"
+    mcp_state = "registered" if _mcp_registered() else "not registered"
     print(f"  MCP server:    {mcp_state}")
 
     import credential_store
@@ -188,6 +215,9 @@ def cmd_status(args: list[str]) -> None:
 
     try:
         import docker_manager
+        client = docker_manager.get_client()
+        mcp_image = "present" if docker_manager.image_exists(client, docker_manager.MCP_IMAGE) else "not pulled"
+        print(f"  MCP image:     {mcp_image}")
         status = docker_manager.get_container_status()
         print(f"  container:     {'running' if status['running'] else 'stopped'}")
     except RuntimeError as e:
@@ -201,7 +231,8 @@ def main() -> None:
         print("Commands:")
         print("  install [--build]        install skills + MCP, prompt for license key")
         print("  build                    build Docker image using stored license key")
-        print("  publish [--tag TAG]      build + push multi-arch image to Docker Hub")
+        print("  publish [--tag TAG]      build + push multi-arch kdb-x-runner image to Docker Hub")
+        print("  publish-mcp [--tag TAG]  build + push multi-arch q-solver-mcp image to Docker Hub")
         print("  uninstall                remove skills and MCP registration")
         print("  status                   show install status")
         return
@@ -212,6 +243,7 @@ def main() -> None:
         "install": cmd_install,
         "build": cmd_build,
         "publish": cmd_publish,
+        "publish-mcp": cmd_publish_mcp,
         "uninstall": cmd_uninstall,
         "status": cmd_status,
     }

@@ -17,32 +17,30 @@ Three Claude Code skills backed by a Python MCP server that manages a Docker con
 ```
 Claude Code skill
     ↓  (calls MCP tool)
-q_solver/mcp/server.py  (FastMCP stdio server)
-    ↓  (calls docker-py)
+q-solver-mcp container  (FastMCP stdio server, docker.sock mounted)
+    ↓  (docker-py, against host Docker daemon)
 kdb-x-runner container  (qtpy6969/kdb-x-runner — ubuntu:22.04 + kdb-x binary)
     ↓  (exec q binary)
 /root/.kx/bin/q
 ```
 
-The CLI (`q-solver install`) handles all one-time interactive setup. The MCP server is a stdio subprocess with no terminal access — it only executes q code.
+The CLI (`q-solver install`) handles all one-time interactive setup. The MCP server itself runs inside a small container ([`qtpy6969/q-solver-mcp`](https://hub.docker.com/r/qtpy6969/q-solver-mcp)) registered via `claude mcp add q-solver docker -- run -i --rm ...`. It mounts the host's Docker socket (`/var/run/docker.sock`) to manage `kdb-x-runner` as a sibling container, and mounts `~/.config/q-solver` for the license/credential store. No host Python install is needed to *run* the MCP server — only Docker.
 
 The `kdb-x-runner` container is a pre-built image ([`qtpy6969/kdb-x-runner`](https://hub.docker.com/r/qtpy6969/kdb-x-runner)) with the kdb-x binary installed but no license. `q-solver build` pulls the image and injects your license key (`kc.lic`) at runtime — no slow local build required.
 
 ## Prerequisites
 
-- Python 3.10+
+- [uv](https://docs.astral.sh/uv/) (for installing the `q-solver` CLI — the MCP server itself runs in Docker)
 - Docker Engine running
 - KX license key (base64) — get one at https://developer.kx.com/products/kdb-x/install
 - Claude Code CLI
 
 ## Install
 
-Make sure Python 3.10+ is active (`python --version`), then:
-
 ```bash
 git clone https://github.com/arvind-iyer-2001/q-solver
 cd q-solver
-python -m pip install -e .
+uv tool install --editable .
 q-solver install --build
 ```
 
@@ -50,9 +48,10 @@ q-solver install --build
 1. Prompt for your KX license key (hidden input)
 2. Save it to `~/.config/q-solver/config.json` (chmod 600)
 3. Copy skills to `~/.claude/skills/`
-4. Register the MCP server via `claude mcp add`
-5. Verify the connection with `claude mcp list`
-6. Pull `qtpy6969/kdb-x-runner` from Docker Hub and inject your license (fast — no local build)
+4. Pull `qtpy6969/q-solver-mcp` from Docker Hub
+5. Register the MCP server via `claude mcp add` (runs the pulled image, mounting `/var/run/docker.sock` and `~/.config/q-solver`)
+6. Verify the connection with `claude mcp list`
+7. Pull `qtpy6969/kdb-x-runner` from Docker Hub and inject your license (fast — no local build)
 
 Restart Claude Code, then test:
 
@@ -67,6 +66,8 @@ Expected output: `2`
 ```
 q-solver install [--build]   # set up everything; --build also builds Docker image
 q-solver build               # build Docker image using stored license key
+q-solver publish [--tag TAG]      # build + push multi-arch kdb-x-runner image to Docker Hub
+q-solver publish-mcp [--tag TAG]  # build + push multi-arch q-solver-mcp image to Docker Hub
 q-solver uninstall           # remove skills and MCP registration
 q-solver status              # show install state
 ```
@@ -86,6 +87,7 @@ q_solver/
     q-debug/SKILL.md
   docker/
     Dockerfile         # multi-stage build for qtpy6969/kdb-x-runner (license stripped)
+    Dockerfile.mcp     # build for qtpy6969/q-solver-mcp (the MCP server image)
 tests/
   test_credential_store.py
   test_docker_manager.py
@@ -95,10 +97,10 @@ tests/
 ## Running tests
 
 ```bash
-pytest tests/ -v
+uv run pytest tests/ -v
 ```
 
-31 tests, all passing. Docker is mocked in tests — no container required to run the test suite.
+37 tests, all passing. Docker is mocked in tests — no container required to run the test suite.
 
 ## MCP tools
 
@@ -114,3 +116,4 @@ pytest tests/ -v
 - The `/` character in q's `+/x` (fold) is misinterpreted as a comment when code is fed via stdin pipeline. Use `sum x` instead when writing q code through this tool.
 - MCP registration uses `claude mcp add` (writes to `.claude.json`) not `settings.json` — the two locations are different.
 - After `q-solver uninstall`, run `q-solver install --build` to reinstall everything including the Docker image.
+- The MCP server container mounts `/var/run/docker.sock` so it can manage `kdb-x-runner` as a sibling container. This grants it root-equivalent control over the host's Docker daemon — standard for Docker-management MCP servers, but worth knowing.

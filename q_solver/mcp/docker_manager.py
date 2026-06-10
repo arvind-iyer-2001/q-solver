@@ -8,7 +8,9 @@ import docker.errors
 from credential_store import delete_config, get_license, KX_INSTALL_URL
 
 BASE_IMAGE = "qtpy6969/kdb-x-runner:latest"
-_DOCKERFILE_DIR = Path(__file__).parent.parent / "docker"
+MCP_IMAGE = "qtpy6969/q-solver-mcp:latest"
+_PKG_DIR = Path(__file__).parent.parent
+_DOCKERFILE_DIR = _PKG_DIR / "docker"
 CONTAINER_NAME = "kdb-x-runner"
 Q_BINARY = "/root/.kx/bin/q"
 LICENSE_EXPIRY_SIGNALS = ["'licexp", "license expired"]
@@ -24,9 +26,9 @@ def get_client() -> docker.DockerClient:
         )
 
 
-def image_exists(client: docker.DockerClient) -> bool:
+def image_exists(client: docker.DockerClient, image: str = BASE_IMAGE) -> bool:
     try:
-        client.images.get(BASE_IMAGE)
+        client.images.get(image)
         return True
     except docker.errors.ImageNotFound:
         return False
@@ -43,15 +45,23 @@ def pull_base_image(client: docker.DockerClient) -> None:
     client.images.pull(BASE_IMAGE)
 
 
-def build_and_push_multiarch(license_key: str, tag: str = BASE_IMAGE) -> None:
-    """Build a multi-arch image (linux/amd64 + linux/arm64) and push to Docker Hub.
-    Requires: docker login, docker buildx with a multi-arch builder active."""
+def pull_mcp_image(client: docker.DockerClient) -> None:
+    client.images.pull(MCP_IMAGE)
+
+
+def _ensure_buildx_builder() -> None:
     result = subprocess.run(
         ["docker", "buildx", "create", "--use", "--name", "q-solver-builder"],
         capture_output=True, text=True,
     )
     if result.returncode != 0 and "already exists" not in result.stderr:
         raise RuntimeError(f"docker buildx create failed:\n{result.stderr}")
+
+
+def build_and_push_multiarch(license_key: str, tag: str = BASE_IMAGE) -> None:
+    """Build a multi-arch image (linux/amd64 + linux/arm64) and push to Docker Hub.
+    Requires: docker login, docker buildx with a multi-arch builder active."""
+    _ensure_buildx_builder()
     subprocess.run(
         [
             "docker", "buildx", "build",
@@ -60,6 +70,23 @@ def build_and_push_multiarch(license_key: str, tag: str = BASE_IMAGE) -> None:
             "-t", tag,
             "--push",
             str(_DOCKERFILE_DIR),
+        ],
+        check=True,
+    )
+
+
+def build_and_push_mcp_image(tag: str = MCP_IMAGE) -> None:
+    """Build the MCP server image (multi-arch) and push to Docker Hub.
+    Requires: docker login, docker buildx with a multi-arch builder active."""
+    _ensure_buildx_builder()
+    subprocess.run(
+        [
+            "docker", "buildx", "build",
+            "--platform", "linux/amd64,linux/arm64",
+            "-f", str(_DOCKERFILE_DIR / "Dockerfile.mcp"),
+            "-t", tag,
+            "--push",
+            str(_PKG_DIR),
         ],
         check=True,
     )
