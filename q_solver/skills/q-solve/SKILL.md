@@ -33,7 +33,7 @@ Present the generated test cases to the user with a one-line explanation for eac
 
 Load the `q-knowledge:q` skill for idiomatic q (vectorization, type traps, error patterns). Be idiomatic: use q primitives and vector operations. Avoid unnecessary loops.
 
-**Pipeline caveat:** `run_q` pipes code through `base64 | q -q` on stdin, which misparses a **bare monadic `<verb><adverb><operand>`** at the start of an expression (e.g. `+/1 2 3`, `&/1 2 3`, `+\1 2 3`) — throws a spurious `'type` (or `'/`) error with `exit_code 0`. Dyadic forms (`x f/ y`, `x f/: y`, `x f\: y`) and `each`/`'` are unaffected. Fix by **parenthesizing or bracketing the verb-adverb**: `(+/)1 2 3` or `+/[1 2 3]` instead of `+/1 2 3` — works for any verb/adverb combo, including custom dyadic functions in folds (`{x,", ",y}/strs`). Named equivalents (`sum`/`prd`/`min`/`max`/`sums`/`prds`/`mins`/`maxs`/`deltas`) also work. See CLAUDE.md "Known pitfall".
+**Known parser quirk:** `run_q` misparses a **bare monadic `<verb><adverb><operand>`** at the start of an expression (e.g. `+/1 2 3`, `&/1 2 3`, `+\1 2 3`) — throws a spurious `'/` (or `'type`) error (`exit_code 1`). Dyadic forms (`x f/ y`, `x f/: y`, `x f\: y`) and `each`/`'` are unaffected. Fix by **parenthesizing or bracketing the verb-adverb**: `(+/)1 2 3` or `+/[1 2 3]` instead of `+/1 2 3` — works for any verb/adverb combo, including custom dyadic functions in folds (`{x,", ",y}/strs`). Named equivalents (`sum`/`prd`/`min`/`max`/`sums`/`prds`/`mins`/`maxs`/`deltas`) also work. See CLAUDE.md "Known pitfall".
 
 ### Step 3 — Run
 

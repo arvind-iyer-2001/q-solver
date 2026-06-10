@@ -31,22 +31,33 @@ uv run pytest tests/ -v   # 76 tests, Docker mocked
 
 ## q execution detail
 
-Code is base64-encoded before being passed to the container to avoid shell quoting issues:
+Code is base64-encoded and written to a temp script file inside the container, then run as `q <file> -q` (NOT piped to `q -q` on stdin — see below for why):
 
 ```python
 b64 = base64.b64encode((code + "\n").encode()).decode()
-cmd = ["bash", "-c", f"base64 -d <<< '{b64}' | /root/.kx/bin/q -q"]
+script_path = f"/tmp/q_solver_{uuid.uuid4().hex}.q"
+cmd = [
+    "bash", "-c",
+    f"base64 -d <<< '{b64}' > {script_path} && {Q_BINARY} {script_path} -q < /dev/null; "
+    f"ec=$?; rm -f {script_path}; exit $ec",
+]
 ```
 
 The `\n` appended before encoding is required — q needs a trailing newline to flush stdout.
 
-## Known pitfall: `/` in q code via stdin pipeline
+**Flag order matters**: `q <file> -q` (flag *after* the script path). `q -q <file>` silently swallows the file argument — the script never loads, no output, no error, `exit_code 0`. Always put `-q` last.
 
-A **bare monadic `<verb><adverb><operand>`** at the start of an expression — `+/1 2 3`, `&/1 2 3`, `+\1 2 3`, `*/1 2 3`, etc. — gets misparsed when code is fed through the stdin pipeline, throwing a spurious `'type` (or `'/`) error with `exit_code 0`.
+This temp-file approach (vs. the old `base64 -d <<< ... | q -q` pipe) makes `exit_code` a reliable error signal: q errors (`'type`, `'rank`, `'/`, etc.) now produce `exit_code 1` and land on stderr; success is `exit_code 0`. With the old pipe approach, `exit_code` was *always* 0 regardless of errors.
+
+## Known pitfall: bare monadic `<verb><adverb><operand>` throws `'/` / `'type`
+
+A **bare monadic `<verb><adverb><operand>`** at the start of an expression — `+/1 2 3`, `&/1 2 3`, `+\1 2 3`, `*/1 2 3`, etc. — throws a spurious `'/` (or `'type`) parse error (`exit_code 1`).
+
+**This is NOT a `run_q`-pipeline artifact** — verified empirically (2026-06-11) on kdb+ 5.0 (`.z.K`=`5f`, `.z.k`=`2026.05.01`): the identical error reproduces via stdin pipe (`... | q -q`), script-file execution (`q file.q -q`), and even under a pseudo-tty (`script -qec "q -q" /dev/null`). It appears to be an inherent kdb+ 5.0 parser characteristic for this token shape when not driven by an interactive keystroke-by-keystroke reader (linenoise) — there is no fix available at the `run_q`/wrapper level.
 
 **Fix: parenthesize or bracket the verb-adverb** — `(+/)1 2 3` or `+/[1 2 3]` instead of `+/1 2 3`. This works for *any* verb/adverb combo, including custom dyadic functions in folds/scans (`{x,", ",y}/strs`), so it's the general fix. Named equivalents (`sum`/`prd`/`min`/`max`/`sums`/`prds`/`mins`/`maxs`/`deltas`) also work for the built-in cases.
 
-**Unaffected:** dyadic adverb forms (`x f/ y`, `x f/: y`, `x f\: y`) and `each`/`'`. This is a pipeline limitation, not a q bug — in a normal q session `+/x` works fine.
+**Unaffected:** dyadic adverb forms (`x f/ y`, `x f/: y`, `x f\: y`) and `each`/`'`.
 
 The `q-solve`/`q-debug`/`q-run` skills document this caveat inline; `q-knowledge:q` (idiom/error reference) is unaware of it, so don't rely on its adverb examples verbatim through `run_q`.
 
