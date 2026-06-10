@@ -19,6 +19,7 @@ q-solver = "q_solver.__main__:main"
 dev = [
     "pytest",
     "pytest-mock",
+    "pytest-cov",
 ]
 
 [tool.setuptools.packages.find]
