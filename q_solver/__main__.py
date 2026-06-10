@@ -10,6 +10,8 @@ _SKILLS_SRC = _PKG_DIR / "skills"
 _SKILLS_DST_ROOT = Path.home() / ".claude" / "skills"
 _MCP_SERVER_NAME = "q-solver"
 _SKILL_NAMES = ["q-solve", "q-run", "q-debug"]
+_Q_KNOWLEDGE_PLUGIN = "q-knowledge@kx-skills"
+_KX_SKILLS_MARKETPLACE = "https://github.com/KxSystems/kx-skills"
 
 KX_INSTALL_URL = "https://developer.kx.com/products/kdb-x/install"
 
@@ -105,6 +107,49 @@ def _unregister_mcp() -> None:
         print("  MCP removed via claude mcp remove")
 
 
+def _q_knowledge_installed() -> bool:
+    import subprocess
+    result = subprocess.run(
+        ["claude", "plugin", "list"],
+        capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        return False
+    return "q-knowledge" in result.stdout
+
+
+def _ensure_q_knowledge_plugin() -> None:
+    if _q_knowledge_installed():
+        print(f"  q-knowledge plugin already installed -> {_Q_KNOWLEDGE_PLUGIN}")
+        return
+
+    import subprocess
+    manual = (
+        f"  run manually: claude plugin marketplace add {_KX_SKILLS_MARKETPLACE}\n"
+        f"                claude plugin install {_Q_KNOWLEDGE_PLUGIN}"
+    )
+
+    result = subprocess.run(
+        ["claude", "plugin", "marketplace", "add", _KX_SKILLS_MARKETPLACE],
+        capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        print(f"  warning: claude plugin marketplace add failed: {result.stderr.strip()}", file=sys.stderr)
+        print(manual)
+        return
+
+    result = subprocess.run(
+        ["claude", "plugin", "install", _Q_KNOWLEDGE_PLUGIN],
+        capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        print(f"  warning: claude plugin install failed: {result.stderr.strip()}", file=sys.stderr)
+        print(manual)
+        return
+
+    print(f"  q-knowledge plugin installed -> {_Q_KNOWLEDGE_PLUGIN} (restart Claude Code to load it)")
+
+
 def cmd_install(args: list[str]) -> None:
     build = "--build" in args
 
@@ -122,6 +167,9 @@ def cmd_install(args: list[str]) -> None:
     print(f"  license saved  -> {credential_store.CONFIG_PATH}")
 
     _install_skills()
+
+    print("\nChecking q-knowledge plugin (q/kdb+ idiom + error reference)...")
+    _ensure_q_knowledge_plugin()
 
     print("\nPulling MCP server image...")
     try:
@@ -205,6 +253,9 @@ def cmd_status(args: list[str]) -> None:
 
     mcp_state = "registered" if _mcp_registered() else "not registered"
     print(f"  MCP server:    {mcp_state}")
+
+    qk_state = "installed" if _q_knowledge_installed() else "not installed"
+    print(f"  q-knowledge:   {qk_state}")
 
     import credential_store
     lic = credential_store.get_license()
