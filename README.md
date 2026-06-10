@@ -100,7 +100,19 @@ tests/
 uv run pytest tests/ -v
 ```
 
-37 tests, all passing. Docker is mocked in tests — no container required to run the test suite.
+69 tests, all passing. Docker is mocked in tests — no container required to run the test suite.
+
+## Linting
+
+```bash
+uv run ruff check .
+```
+
+Pre-commit hooks run ruff automatically on `git commit`. Set up once with:
+
+```bash
+uv run pre-commit install
+```
 
 ## MCP tools
 
