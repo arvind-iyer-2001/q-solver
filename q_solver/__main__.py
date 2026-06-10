@@ -162,17 +162,12 @@ def cmd_publish(args: list[str]) -> None:
             tag = args[i + 1]
 
     sys.path.insert(0, str(_PKG_DIR / "mcp"))
-    import credential_store, docker_manager
-
-    license_key = credential_store.get_license()
-    if not license_key:
-        print("error: no license key stored. Run 'q-solver install' first.", file=sys.stderr)
-        sys.exit(1)
+    import docker_manager
 
     target = tag or docker_manager.BASE_IMAGE
     print(f"Building multi-arch image ({target}) for linux/amd64 + linux/arm64...")
-    print("This takes 10-15 minutes. Requires: docker login, docker buildx.\n")
-    docker_manager.build_and_push_multiarch(license_key, tag=target)
+    print("Requires: docker login, docker buildx.\n")
+    docker_manager.build_and_push_multiarch(tag=target)
     print(f"\nPushed: {target}")
 
 

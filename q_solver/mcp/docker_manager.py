@@ -58,7 +58,7 @@ def _ensure_buildx_builder() -> None:
         raise RuntimeError(f"docker buildx create failed:\n{result.stderr}")
 
 
-def build_and_push_multiarch(license_key: str, tag: str = BASE_IMAGE) -> None:
+def build_and_push_multiarch(tag: str = BASE_IMAGE) -> None:
     """Build a multi-arch image (linux/amd64 + linux/arm64) and push to Docker Hub.
     Requires: docker login, docker buildx with a multi-arch builder active."""
     _ensure_buildx_builder()
@@ -66,7 +66,6 @@ def build_and_push_multiarch(license_key: str, tag: str = BASE_IMAGE) -> None:
         [
             "docker", "buildx", "build",
             "--platform", "linux/amd64,linux/arm64",
-            "--build-arg", f"B64LIC={license_key}",
             "-t", tag,
             "--push",
             str(_DOCKERFILE_DIR),
