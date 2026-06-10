@@ -84,8 +84,8 @@ q_solver/
     q-run/SKILL.md
     q-solve/SKILL.md
     q-debug/SKILL.md
-docker/
-  base/Dockerfile      # multi-stage build for qtpy6969/kdb-x-runner (license stripped)
+  docker/
+    Dockerfile         # multi-stage build for qtpy6969/kdb-x-runner (license stripped)
 tests/
   test_credential_store.py
   test_docker_manager.py

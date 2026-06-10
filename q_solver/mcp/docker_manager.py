@@ -50,7 +50,8 @@ def build_and_push_multiarch(license_key: str, tag: str = BASE_IMAGE) -> None:
         ["docker", "buildx", "create", "--use", "--name", "q-solver-builder"],
         capture_output=True, text=True,
     )
-    # ignore error if builder already exists
+    if result.returncode != 0 and "already exists" not in result.stderr:
+        raise RuntimeError(f"docker buildx create failed:\n{result.stderr}")
     subprocess.run(
         [
             "docker", "buildx", "build",
@@ -150,10 +151,6 @@ def run_q(code: str) -> dict:
 
     if _is_license_expired(stderr) or _is_license_expired(stdout):
         _handle_license_expiry()
-        result = container.exec_run(cmd, demux=True)
-        stdout = (result.output[0] or b"").decode("utf-8", errors="replace")
-        stderr = (result.output[1] or b"").decode("utf-8", errors="replace")
-        exit_code = result.exit_code
 
     return {"stdout": stdout, "stderr": stderr, "exit_code": exit_code}
 

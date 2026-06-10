@@ -77,7 +77,7 @@ def test_run_q_success(mock_client):
     assert result["stderr"] == ""
 
 
-def test_run_q_triggers_expiry_flow_on_licexp(mock_client, monkeypatch):
+def test_run_q_raises_on_license_expiry(mock_client, monkeypatch):
     import docker_manager
     container = MagicMock()
     container.status = "running"
@@ -87,20 +87,15 @@ def test_run_q_triggers_expiry_flow_on_licexp(mock_client, monkeypatch):
     expired = MagicMock()
     expired.exit_code = 1
     expired.output = (b"", b"'licexp\n")
+    container.exec_run.return_value = expired
 
-    success = MagicMock()
-    success.exit_code = 0
-    success.output = (b"2\n", b"")
+    monkeypatch.setattr(docker_manager, "delete_config", lambda: None)
 
-    container.exec_run.side_effect = [expired, success]
+    with pytest.raises(RuntimeError, match="license has expired"):
+        docker_manager.run_q("1+1")
 
-    handle_mock = MagicMock()
-    monkeypatch.setattr(docker_manager, "_handle_license_expiry", handle_mock)
-
-    result = docker_manager.run_q("1+1")
-
-    handle_mock.assert_called_once()
-    assert result["exit_code"] == 0
+    container.stop.assert_called_once()
+    container.remove.assert_called_once()
 
 
 def test_get_container_status_running(mock_client):
