@@ -209,3 +209,89 @@ def test_handle_license_expiry_removes_container_not_image(mock_client, monkeypa
     container.stop.assert_called_once()
     container.remove.assert_called_once()
     mock_client.images.remove.assert_not_called()
+
+
+def test_pull_base_image_calls_images_pull(mock_client):
+    import docker_manager
+    docker_manager.pull_base_image(mock_client)
+    mock_client.images.pull.assert_called_once_with(docker_manager.BASE_IMAGE)
+
+
+def test_ensure_buildx_builder_raises_on_unexpected_error(monkeypatch):
+    import docker_manager
+    import subprocess
+    failed = MagicMock()
+    failed.returncode = 1
+    failed.stderr = "permission denied"
+    monkeypatch.setattr(subprocess, "run", lambda cmd, **kw: failed)
+    with pytest.raises(RuntimeError, match="docker buildx create failed"):
+        docker_manager._ensure_buildx_builder()
+
+
+def test_build_and_push_multiarch_invokes_buildx(monkeypatch):
+    import docker_manager
+    import subprocess
+
+    calls = []
+
+    def fake_run(cmd, **kwargs):
+        calls.append(cmd)
+        result = MagicMock()
+        result.returncode = 0
+        result.stderr = ""
+        return result
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    docker_manager.build_and_push_multiarch(tag="example/kdb-x-runner:test")
+
+    build_cmd = calls[1]
+    assert "buildx" in build_cmd
+    assert "example/kdb-x-runner:test" in build_cmd
+    assert "--push" in build_cmd
+    assert str(docker_manager._DOCKERFILE_DIR) in build_cmd
+
+
+def test_inject_license_writes_kc_lic_via_put_archive():
+    import docker_manager
+    import tarfile
+    import base64
+
+    container = MagicMock()
+    license_key = base64.b64encode(b"LICENSE-CONTENT").decode()
+
+    docker_manager.inject_license(container, license_key)
+
+    container.put_archive.assert_called_once()
+    path_arg, tar_stream = container.put_archive.call_args[0]
+    assert path_arg == "/root/.kx/"
+
+    tar = tarfile.open(fileobj=tar_stream, mode="r")
+    member = tar.getmember("kc.lic")
+    assert tar.extractfile(member).read() == b"LICENSE-CONTENT"
+
+
+def test_setup_container_replaces_existing_container(mock_client, monkeypatch):
+    import docker_manager
+    existing = MagicMock()
+    mock_client.containers.get.return_value = existing
+
+    new_container = MagicMock()
+    monkeypatch.setattr(docker_manager, "_start_container", lambda client: new_container)
+    inject_calls = []
+    monkeypatch.setattr(docker_manager, "inject_license", lambda c, k: inject_calls.append((c, k)))
+
+    docker_manager.setup_container("bGljZW5zZQ==")
+
+    mock_client.images.pull.assert_called_once_with(docker_manager.BASE_IMAGE)
+    existing.stop.assert_called_once()
+    existing.remove.assert_called_once()
+    assert inject_calls == [(new_container, "bGljZW5zZQ==")]
+
+
+def test_ensure_container_running_raises_when_license_missing(mock_client, monkeypatch):
+    import docker_manager
+    mock_client.images.get.return_value = MagicMock()
+    mock_client.containers.get.side_effect = docker.errors.NotFound("nope")
+    monkeypatch.setattr(docker_manager, "get_license", lambda: None)
+    with pytest.raises(RuntimeError, match="q-solver install"):
+        docker_manager.ensure_container_running()
