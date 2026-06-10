@@ -35,7 +35,7 @@ jobs:
       - uses: docker/setup-buildx-action@v3
 
       - name: Build amd64 image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: q_solver
           file: q_solver/docker/Dockerfile.mcp
@@ -60,7 +60,7 @@ jobs:
 
       - name: Build and push multi-arch
         if: github.event_name == 'push'
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: q_solver
           file: q_solver/docker/Dockerfile.mcp
