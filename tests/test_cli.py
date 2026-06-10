@@ -1,8 +1,7 @@
 import pytest
-import json
 import sys
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -185,7 +184,8 @@ def test_cmd_install_empty_license_exits(monkeypatch, fake_home):
 def test_cmd_install_full_flow_without_build(monkeypatch, fake_home, capsys):
     import getpass
     import q_solver.__main__ as cli
-    import credential_store, docker_manager
+    import credential_store
+    import docker_manager
 
     monkeypatch.setattr(getpass, "getpass", lambda prompt: "bGljZW5zZQ==")
     monkeypatch.setattr(credential_store, "setup_with_license", lambda key: None)
@@ -208,7 +208,8 @@ def test_cmd_install_full_flow_without_build(monkeypatch, fake_home, capsys):
 def test_cmd_install_with_build_flag(monkeypatch, fake_home, capsys):
     import getpass
     import q_solver.__main__ as cli
-    import credential_store, docker_manager
+    import credential_store
+    import docker_manager
 
     monkeypatch.setattr(getpass, "getpass", lambda prompt: "bGljZW5zZQ==")
     monkeypatch.setattr(credential_store, "setup_with_license", lambda key: None)
@@ -230,7 +231,8 @@ def test_cmd_install_with_build_flag(monkeypatch, fake_home, capsys):
 def test_cmd_install_pull_mcp_image_failure_warns(monkeypatch, fake_home, capsys):
     import getpass
     import q_solver.__main__ as cli
-    import credential_store, docker_manager
+    import credential_store
+    import docker_manager
 
     monkeypatch.setattr(getpass, "getpass", lambda prompt: "bGljZW5zZQ==")
     monkeypatch.setattr(credential_store, "setup_with_license", lambda key: None)
@@ -258,7 +260,8 @@ def test_cmd_build_no_license_exits(monkeypatch, fake_home):
 
 
 def test_cmd_build_with_license_calls_setup_container(monkeypatch, fake_home, capsys):
-    import credential_store, docker_manager
+    import credential_store
+    import docker_manager
     import q_solver.__main__ as cli
     monkeypatch.setattr(credential_store, "get_license", lambda: "bGljZW5zZQ==")
     calls = []
@@ -318,7 +321,8 @@ def test_cmd_uninstall_calls_helpers(monkeypatch, capsys):
 
 def test_cmd_status_full_success(monkeypatch, fake_home, capsys):
     import subprocess
-    import credential_store, docker_manager
+    import credential_store
+    import docker_manager
     import q_solver.__main__ as cli
 
     completed = MagicMock()
@@ -341,7 +345,8 @@ def test_cmd_status_full_success(monkeypatch, fake_home, capsys):
 
 def test_cmd_status_docker_unavailable(monkeypatch, fake_home, capsys):
     import subprocess
-    import credential_store, docker_manager
+    import credential_store
+    import docker_manager
     import q_solver.__main__ as cli
 
     completed = MagicMock()

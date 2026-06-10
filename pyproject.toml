@@ -20,6 +20,7 @@ dev = [
     "pytest",
     "pytest-mock",
     "pytest-cov",
+    "ruff",
 ]
 
 [tool.setuptools.packages.find]

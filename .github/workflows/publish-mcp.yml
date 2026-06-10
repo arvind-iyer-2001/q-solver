@@ -7,6 +7,11 @@ on:
       - "q_solver/mcp/**"
       - "q_solver/docker/Dockerfile.mcp"
       - ".github/workflows/publish-mcp.yml"
+  pull_request:
+    paths:
+      - "q_solver/mcp/**"
+      - "q_solver/docker/Dockerfile.mcp"
+      - ".github/workflows/publish-mcp.yml"
 
 jobs:
   build-and-push:
@@ -14,19 +19,48 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.12"
+
+      - name: Lint
+        run: uv run ruff check .
+
+      - name: Run tests
+        run: uv run pytest tests/ -v
+
       - uses: docker/setup-qemu-action@v3
 
       - uses: docker/setup-buildx-action@v3
 
-      - uses: docker/login-action@v3
+      - name: Build amd64 image
+        uses: docker/build-push-action@v6
+        with:
+          context: q_solver
+          file: q_solver/docker/Dockerfile.mcp
+          platforms: linux/amd64
+          load: true
+          tags: q-solver-mcp:smoke
+
+      - name: Smoke test
+        run: docker run --rm q-solver-mcp:smoke python -c "import server, docker_manager, credential_store; print('ok')"
+
+      - name: Login to Docker Hub
+        if: github.event_name == 'push'
+        uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - uses: docker/build-push-action@v6
+      - name: Build and push multi-arch
+        if: github.event_name == 'push'
+        uses: docker/build-push-action@v6
         with:
           context: q_solver
           file: q_solver/docker/Dockerfile.mcp
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: qtpy6969/q-solver-mcp:latest
+          tags: |
+            qtpy6969/q-solver-mcp:latest
+            qtpy6969/q-solver-mcp:${{ github.sha }}

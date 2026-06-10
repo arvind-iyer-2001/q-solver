@@ -70,7 +70,7 @@ def _register_mcp() -> None:
         print(f"  warning: claude mcp add failed: {result.stderr.strip()}", file=sys.stderr)
         print(f"  run manually: claude mcp add {_MCP_SERVER_NAME} docker -- {' '.join(docker_args)}")
         return
-    print(f"  MCP registered via claude mcp add (docker)")
+    print("  MCP registered via claude mcp add (docker)")
     _verify_mcp()
 
 
@@ -87,12 +87,12 @@ def _verify_mcp() -> None:
     for line in result.stdout.splitlines():
         if _MCP_SERVER_NAME in line:
             if "Connected" in line or "✓" in line:
-                print(f"  MCP verified    -> connected")
+                print("  MCP verified    -> connected")
             else:
                 print(f"  MCP status      -> {line.strip()}")
             return
     print(f"  warning: {_MCP_SERVER_NAME} not found in 'claude mcp list'", file=sys.stderr)
-    print(f"  restart Claude Code for changes to take effect")
+    print("  restart Claude Code for changes to take effect")
 
 
 def _unregister_mcp() -> None:
@@ -102,7 +102,7 @@ def _unregister_mcp() -> None:
         capture_output=True, text=True,
     )
     if result.returncode == 0:
-        print(f"  MCP removed via claude mcp remove")
+        print("  MCP removed via claude mcp remove")
 
 
 def cmd_install(args: list[str]) -> None:
@@ -116,7 +116,8 @@ def cmd_install(args: list[str]) -> None:
         sys.exit(1)
 
     sys.path.insert(0, str(_PKG_DIR / "mcp"))
-    import credential_store, docker_manager
+    import credential_store
+    import docker_manager
     credential_store.setup_with_license(license_key)
     print(f"  license saved  -> {credential_store.CONFIG_PATH}")
 
@@ -143,7 +144,8 @@ def cmd_install(args: list[str]) -> None:
 
 def cmd_build(args: list[str]) -> None:
     sys.path.insert(0, str(_PKG_DIR / "mcp"))
-    import credential_store, docker_manager
+    import credential_store
+    import docker_manager
 
     license_key = credential_store.get_license()
     if not license_key:

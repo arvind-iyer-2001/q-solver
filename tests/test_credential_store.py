@@ -1,7 +1,4 @@
-import pytest
 import json
-import stat
-from pathlib import Path
 
 
 def test_load_config_returns_empty_when_missing(tmp_path):
