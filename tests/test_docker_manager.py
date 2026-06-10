@@ -30,6 +30,44 @@ def test_image_exists_false(mock_client):
     assert docker_manager.image_exists(mock_client) is False
 
 
+def test_image_exists_for_custom_image(mock_client):
+    import docker_manager
+    mock_client.images.get.return_value = MagicMock()
+    assert docker_manager.image_exists(mock_client, docker_manager.MCP_IMAGE) is True
+    mock_client.images.get.assert_called_with(docker_manager.MCP_IMAGE)
+
+
+def test_pull_mcp_image_calls_images_pull(mock_client):
+    import docker_manager
+    docker_manager.pull_mcp_image(mock_client)
+    mock_client.images.pull.assert_called_once_with(docker_manager.MCP_IMAGE)
+
+
+def test_build_and_push_mcp_image_invokes_buildx(monkeypatch):
+    import docker_manager
+    import subprocess
+
+    calls = []
+
+    def fake_run(cmd, **kwargs):
+        calls.append(cmd)
+        result = MagicMock()
+        result.returncode = 0
+        result.stderr = ""
+        return result
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    docker_manager.build_and_push_mcp_image(tag="example/q-solver-mcp:test")
+
+    build_cmd = calls[1]
+    assert "buildx" in build_cmd
+    assert "-f" in build_cmd
+    assert str(docker_manager._DOCKERFILE_DIR / "Dockerfile.mcp") in build_cmd
+    assert "example/q-solver-mcp:test" in build_cmd
+    assert "--push" in build_cmd
+    assert str(docker_manager._PKG_DIR) in build_cmd
+
+
 def test_get_container_returns_container(mock_client):
     import docker_manager
     container = MagicMock()

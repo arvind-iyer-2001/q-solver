@@ -13,20 +13,37 @@ def fake_home(tmp_path, monkeypatch):
     return tmp_path
 
 
-def test_register_mcp_calls_claude_mcp_add(monkeypatch):
+def test_mcp_docker_args_mounts_socket_and_config(fake_home):
+    import q_solver.__main__ as cli
+    import docker_manager
+    args = cli._mcp_docker_args()
+    assert args[0] == "run"
+    assert "/var/run/docker.sock:/var/run/docker.sock" in args
+    assert f"{fake_home / '.config' / 'q-solver'}:/root/.config/q-solver" in args
+    assert args[-1] == docker_manager.MCP_IMAGE
+
+
+def test_register_mcp_calls_claude_mcp_add(monkeypatch, fake_home):
     import subprocess
     import q_solver.__main__ as cli
+    import docker_manager
     completed = MagicMock()
     completed.returncode = 0
     completed.stderr = ""
     calls = []
     monkeypatch.setattr(subprocess, "run", lambda cmd, **kw: calls.append(cmd) or completed)
     cli._register_mcp()
-    assert any("mcp" in str(c) and "add" in str(c) for c in calls)
-    assert any(cli._MCP_SERVER_NAME in str(c) for c in calls)
+    add_calls = [c for c in calls if "add" in c]
+    assert add_calls, "expected a 'claude mcp add' call"
+    add_cmd = add_calls[0]
+    assert add_cmd[:4] == ["claude", "mcp", "add", cli._MCP_SERVER_NAME]
+    assert add_cmd[4] == "docker"
+    assert "run" in add_cmd
+    assert "/var/run/docker.sock:/var/run/docker.sock" in add_cmd
+    assert docker_manager.MCP_IMAGE in add_cmd
 
 
-def test_register_mcp_warns_on_failure(monkeypatch, capsys):
+def test_register_mcp_warns_on_failure(monkeypatch, capsys, fake_home):
     import subprocess
     import q_solver.__main__ as cli
     failed = MagicMock()
@@ -36,6 +53,27 @@ def test_register_mcp_warns_on_failure(monkeypatch, capsys):
     cli._register_mcp()
     out = capsys.readouterr()
     assert "warning" in out.err or "manually" in out.err
+    assert "docker" in out.out
+
+
+def test_mcp_registered_true_when_in_claude_mcp_list(monkeypatch):
+    import subprocess
+    import q_solver.__main__ as cli
+    completed = MagicMock()
+    completed.returncode = 0
+    completed.stdout = "q-solver: docker run ... - ✔ Connected\n"
+    monkeypatch.setattr(subprocess, "run", lambda cmd, **kw: completed)
+    assert cli._mcp_registered() is True
+
+
+def test_mcp_registered_false_when_absent(monkeypatch):
+    import subprocess
+    import q_solver.__main__ as cli
+    completed = MagicMock()
+    completed.returncode = 0
+    completed.stdout = "some-other-server: ... - ✔ Connected\n"
+    monkeypatch.setattr(subprocess, "run", lambda cmd, **kw: completed)
+    assert cli._mcp_registered() is False
 
 
 def test_unregister_mcp_calls_claude_mcp_remove(monkeypatch):
