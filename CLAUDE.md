@@ -26,7 +26,7 @@ A dockerized MCP server (Python/FastMCP) + three Claude Code skills for running 
 ## Running tests
 
 ```bash
-uv run pytest tests/ -v   # 37 tests, Docker mocked
+uv run pytest tests/ -v   # 76 tests, Docker mocked
 ```
 
 ## q execution detail
@@ -42,7 +42,13 @@ The `\n` appended before encoding is required — q needs a trailing newline to 
 
 ## Known pitfall: `/` in q code via stdin pipeline
 
-The `/` character in q adverbs like `+/x` (fold/over) gets misinterpreted as a q comment when code is fed through the stdin pipeline. Use `sum x` instead of `+/x` when writing q code through the MCP tool. This is a pipeline limitation, not a q bug — in a normal q session `+/x` works fine.
+A **bare monadic `<verb><adverb><operand>`** at the start of an expression — `+/1 2 3`, `&/1 2 3`, `+\1 2 3`, `*/1 2 3`, etc. — gets misparsed when code is fed through the stdin pipeline, throwing a spurious `'type` (or `'/`) error with `exit_code 0`.
+
+**Fix: parenthesize or bracket the verb-adverb** — `(+/)1 2 3` or `+/[1 2 3]` instead of `+/1 2 3`. This works for *any* verb/adverb combo, including custom dyadic functions in folds/scans (`{x,", ",y}/strs`), so it's the general fix. Named equivalents (`sum`/`prd`/`min`/`max`/`sums`/`prds`/`mins`/`maxs`/`deltas`) also work for the built-in cases.
+
+**Unaffected:** dyadic adverb forms (`x f/ y`, `x f/: y`, `x f\: y`) and `each`/`'`. This is a pipeline limitation, not a q bug — in a normal q session `+/x` works fine.
+
+The `q-solve`/`q-debug`/`q-run` skills document this caveat inline; `q-knowledge:q` (idiom/error reference) is unaware of it, so don't rely on its adverb examples verbatim through `run_q`.
 
 ## MCP registration
 
@@ -59,15 +65,16 @@ The `settings.json` `mcpServers` key is ignored by Claude Code CLI.
 
 ## Install flow
 
-1. `q-solver install` → prompts license (getpass, hidden), saves to `~/.config/q-solver/config.json` (chmod 600), copies skills, pulls `qtpy6969/q-solver-mcp`, runs `claude mcp add` (docker-based), verifies with `claude mcp list`
+1. `q-solver install` → prompts license (getpass, hidden), saves to `~/.config/q-solver/config.json` (chmod 600), copies skills, ensures `q-knowledge@kx-skills` plugin is installed (`_ensure_q_knowledge_plugin()` — adds the `kx-skills` marketplace + installs the plugin if missing), pulls `qtpy6969/q-solver-mcp`, runs `claude mcp add` (docker-based), verifies with `claude mcp list`
 2. `q-solver build` → builds Docker image with `install_kdb.sh -y --b64lic <key>`, starts container
 3. `q-solver publish-mcp` → builds + pushes `qtpy6969/q-solver-mcp` (multi-arch via buildx, no license needed) — maintainer-only
 
 ## Test suite structure
 
 - `tests/test_credential_store.py` — 7 tests, uses `tmp_path` to redirect config paths
-- `tests/test_docker_manager.py` — 22 tests, Docker fully mocked via monkeypatch
-- `tests/test_cli.py` — 8 tests, subprocess.run mocked for MCP registration tests
+- `tests/test_docker_manager.py` — 28 tests, Docker fully mocked via monkeypatch
+- `tests/test_cli.py` — 37 tests, subprocess.run mocked for MCP/plugin registration tests
+- `tests/test_server.py` — 4 tests, FastMCP tool registration
 
 ## Dependencies
 

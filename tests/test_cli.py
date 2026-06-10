@@ -87,6 +87,94 @@ def test_unregister_mcp_calls_claude_mcp_remove(monkeypatch):
     assert any(cli._MCP_SERVER_NAME in str(c) for c in calls)
 
 
+def test_q_knowledge_installed_true_when_in_plugin_list(monkeypatch):
+    import subprocess
+    import q_solver.__main__ as cli
+    completed = MagicMock()
+    completed.returncode = 0
+    completed.stdout = "q-knowledge@kx-skills\n  Version: 0.1.0\n"
+    monkeypatch.setattr(subprocess, "run", lambda cmd, **kw: completed)
+    assert cli._q_knowledge_installed() is True
+
+
+def test_q_knowledge_installed_false_when_absent(monkeypatch):
+    import subprocess
+    import q_solver.__main__ as cli
+    completed = MagicMock()
+    completed.returncode = 0
+    completed.stdout = "superpowers@claude-plugins-official\n"
+    monkeypatch.setattr(subprocess, "run", lambda cmd, **kw: completed)
+    assert cli._q_knowledge_installed() is False
+
+
+def test_q_knowledge_installed_false_on_nonzero_returncode(monkeypatch):
+    import subprocess
+    import q_solver.__main__ as cli
+    failed = MagicMock()
+    failed.returncode = 1
+    monkeypatch.setattr(subprocess, "run", lambda cmd, **kw: failed)
+    assert cli._q_knowledge_installed() is False
+
+
+def test_ensure_q_knowledge_plugin_skips_if_already_installed(monkeypatch, capsys):
+    import subprocess
+    import q_solver.__main__ as cli
+    monkeypatch.setattr(cli, "_q_knowledge_installed", lambda: True)
+    calls = []
+    monkeypatch.setattr(subprocess, "run", lambda cmd, **kw: calls.append(cmd))
+    cli._ensure_q_knowledge_plugin()
+    assert calls == []
+    assert "already installed" in capsys.readouterr().out
+
+
+def test_ensure_q_knowledge_plugin_installs_when_missing(monkeypatch, capsys):
+    import subprocess
+    import q_solver.__main__ as cli
+    monkeypatch.setattr(cli, "_q_knowledge_installed", lambda: False)
+    completed = MagicMock()
+    completed.returncode = 0
+    calls = []
+    monkeypatch.setattr(subprocess, "run", lambda cmd, **kw: calls.append(cmd) or completed)
+    cli._ensure_q_knowledge_plugin()
+    assert calls[0] == ["claude", "plugin", "marketplace", "add", cli._KX_SKILLS_MARKETPLACE]
+    assert calls[1] == ["claude", "plugin", "install", cli._Q_KNOWLEDGE_PLUGIN]
+    assert "installed" in capsys.readouterr().out
+
+
+def test_ensure_q_knowledge_plugin_warns_on_marketplace_add_failure(monkeypatch, capsys):
+    import subprocess
+    import q_solver.__main__ as cli
+    monkeypatch.setattr(cli, "_q_knowledge_installed", lambda: False)
+    failed = MagicMock()
+    failed.returncode = 1
+    failed.stderr = "network error"
+    calls = []
+    monkeypatch.setattr(subprocess, "run", lambda cmd, **kw: calls.append(cmd) or failed)
+    cli._ensure_q_knowledge_plugin()
+    assert calls == [["claude", "plugin", "marketplace", "add", cli._KX_SKILLS_MARKETPLACE]]
+    out = capsys.readouterr()
+    assert "warning" in out.err
+    assert "run manually" in out.out
+    assert cli._Q_KNOWLEDGE_PLUGIN in out.out
+
+
+def test_ensure_q_knowledge_plugin_warns_on_plugin_install_failure(monkeypatch, capsys):
+    import subprocess
+    import q_solver.__main__ as cli
+    monkeypatch.setattr(cli, "_q_knowledge_installed", lambda: False)
+    ok = MagicMock()
+    ok.returncode = 0
+    failed = MagicMock()
+    failed.returncode = 1
+    failed.stderr = "plugin not found"
+    results = [ok, failed]
+    monkeypatch.setattr(subprocess, "run", lambda cmd, **kw: results.pop(0))
+    cli._ensure_q_knowledge_plugin()
+    out = capsys.readouterr()
+    assert "warning" in out.err
+    assert "run manually" in out.out
+
+
 def test_install_skills_copies_files(tmp_path, monkeypatch):
     import q_solver.__main__ as cli
     src_root = tmp_path / "skills"
@@ -191,6 +279,7 @@ def test_cmd_install_full_flow_without_build(monkeypatch, fake_home, capsys):
     monkeypatch.setattr(credential_store, "setup_with_license", lambda key: None)
     monkeypatch.setattr(cli, "_install_skills", lambda: None)
     monkeypatch.setattr(cli, "_register_mcp", lambda: None)
+    monkeypatch.setattr(cli, "_ensure_q_knowledge_plugin", lambda: None)
     monkeypatch.setattr(docker_manager, "get_client", lambda: MagicMock())
     monkeypatch.setattr(docker_manager, "pull_mcp_image", lambda client: None)
     setup_calls = []
@@ -200,6 +289,7 @@ def test_cmd_install_full_flow_without_build(monkeypatch, fake_home, capsys):
 
     out = capsys.readouterr().out
     assert "license saved" in out
+    assert "Checking q-knowledge plugin" in out
     assert f"pulled -> {docker_manager.MCP_IMAGE}" in out
     assert "To build the Docker image now" in out
     assert setup_calls == []
@@ -215,6 +305,7 @@ def test_cmd_install_with_build_flag(monkeypatch, fake_home, capsys):
     monkeypatch.setattr(credential_store, "setup_with_license", lambda key: None)
     monkeypatch.setattr(cli, "_install_skills", lambda: None)
     monkeypatch.setattr(cli, "_register_mcp", lambda: None)
+    monkeypatch.setattr(cli, "_ensure_q_knowledge_plugin", lambda: None)
     monkeypatch.setattr(docker_manager, "get_client", lambda: MagicMock())
     monkeypatch.setattr(docker_manager, "pull_mcp_image", lambda client: None)
     setup_calls = []
@@ -238,6 +329,7 @@ def test_cmd_install_pull_mcp_image_failure_warns(monkeypatch, fake_home, capsys
     monkeypatch.setattr(credential_store, "setup_with_license", lambda key: None)
     monkeypatch.setattr(cli, "_install_skills", lambda: None)
     monkeypatch.setattr(cli, "_register_mcp", lambda: None)
+    monkeypatch.setattr(cli, "_ensure_q_knowledge_plugin", lambda: None)
     monkeypatch.setattr(docker_manager, "get_client", lambda: MagicMock())
 
     def boom(client):
@@ -338,6 +430,7 @@ def test_cmd_status_full_success(monkeypatch, fake_home, capsys):
 
     out = capsys.readouterr().out
     assert "MCP server:    registered" in out
+    assert "q-knowledge:   not installed" in out
     assert "license:       stored" in out
     assert "MCP image:     present" in out
     assert "container:     running" in out

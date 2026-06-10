@@ -25,6 +25,10 @@ Identify:
 - Root cause: what specifically is wrong and why
 - What the code is trying to accomplish
 
+For `'type` / `'rank` / `'assign` / `'length` / `'domain` etc., load `q-knowledge:q`'s `references/common-errors.md` for the cause/fix table.
+
+**Pipeline caveat:** if the code has a **bare monadic `<verb><adverb><operand>`** at the start of an expression (e.g. `+/1 2 3`, `&/1 2 3`, `+\1 2 3`) and the failure is a `'type` (or `'/`) error with `exit_code 0` that doesn't match the code's logic, this is the `run_q` stdin-pipeline misparsing the verb-adverb token — not a bug in the code. Fix by parenthesizing/bracketing: `(+/)1 2 3` or `+/[1 2 3]`. Dyadic forms (`x f/ y`, `x f/: y`) and `each`/`'` are unaffected. See CLAUDE.md "Known pitfall".
+
 ### Step 2 — Propose fix
 
 State clearly:
