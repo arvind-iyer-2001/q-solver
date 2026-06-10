@@ -115,6 +115,31 @@ def test_run_q_success(mock_client):
     assert result["stderr"] == ""
 
 
+def test_run_q_writes_script_file_and_runs_q_with_exit_code_propagation(mock_client):
+    import docker_manager
+    container = MagicMock()
+    container.status = "running"
+    mock_client.containers.get.return_value = container
+    mock_client.images.get.return_value = MagicMock()
+
+    exec_result = MagicMock()
+    exec_result.exit_code = 1
+    exec_result.output = (b"", b"'type\n")
+    container.exec_run.return_value = exec_result
+
+    result = docker_manager.run_q("+/1 2 3")
+
+    assert result["exit_code"] == 1
+    cmd = container.exec_run.call_args[0][0]
+    assert cmd[:2] == ["bash", "-c"]
+    script = cmd[2]
+    assert "> /tmp/q_solver_" in script
+    assert f"{docker_manager.Q_BINARY} /tmp/q_solver_" in script
+    assert "-q < /dev/null" in script
+    assert "rm -f /tmp/q_solver_" in script
+    assert "ec=$?" in script and "exit $ec" in script
+
+
 def test_run_q_raises_on_license_expiry(mock_client, monkeypatch):
     import docker_manager
     container = MagicMock()

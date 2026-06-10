@@ -2,6 +2,7 @@ import base64
 import io
 import subprocess
 import tarfile
+import uuid
 from pathlib import Path
 import docker
 import docker.errors
@@ -168,7 +169,12 @@ def run_q(code: str) -> dict:
     container = get_container(client)
 
     b64 = base64.b64encode((code + "\n").encode()).decode()
-    cmd = ["bash", "-c", f"base64 -d <<< '{b64}' | {Q_BINARY} -q"]
+    script_path = f"/tmp/q_solver_{uuid.uuid4().hex}.q"
+    cmd = [
+        "bash", "-c",
+        f"base64 -d <<< '{b64}' > {script_path} && {Q_BINARY} {script_path} -q < /dev/null; "
+        f"ec=$?; rm -f {script_path}; exit $ec",
+    ]
 
     result = container.exec_run(cmd, demux=True)
     stdout = (result.output[0] or b"").decode("utf-8", errors="replace")
