@@ -16,6 +16,7 @@ def test_save_config_writes_json_with_600_perms(tmp_path):
     path = tmp_path / "config.json"
     assert json.loads(path.read_text()) == {"license_key": "abc123"}
     assert oct(path.stat().st_mode & 0o777) == "0o600"
+    assert oct(tmp_path.stat().st_mode & 0o777) == "0o700"
 
 
 def test_delete_config_removes_file(tmp_path):

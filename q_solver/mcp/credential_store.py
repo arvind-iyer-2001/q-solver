@@ -15,6 +15,7 @@ def load_config() -> dict:
 
 def save_config(config: dict) -> None:
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    CONFIG_DIR.chmod(stat.S_IRWXU)
     CONFIG_PATH.write_text(json.dumps(config, indent=2))
     CONFIG_PATH.chmod(stat.S_IRUSR | stat.S_IWUSR)
 

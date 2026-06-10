@@ -44,6 +44,11 @@ jobs:
       - name: Smoke test
         run: docker run --rm kdb-x-runner:smoke /root/.kx/bin/q -q 2>&1 | grep -qi license
 
+      - name: Read project version
+        if: github.event_name == 'push'
+        id: version
+        run: echo "version=$(grep -m1 '^version = ' pyproject.toml | sed -E 's/version = \"(.*)\"/\1/')" >> "$GITHUB_OUTPUT"
+
       - name: Login to Docker Hub
         if: github.event_name == 'push'
         uses: docker/login-action@v3
@@ -62,3 +67,4 @@ jobs:
           tags: |
             qtpy6969/kdb-x-runner:latest
             qtpy6969/kdb-x-runner:${{ github.sha }}
+            qtpy6969/kdb-x-runner:v${{ steps.version.outputs.version }}
