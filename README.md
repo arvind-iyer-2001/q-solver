@@ -7,13 +7,14 @@ Claude Code skill + MCP server for solving, running, and debugging q/kdb+ code u
 
 ## What it does
 
-Three Claude Code skills backed by a Python MCP server that manages a Docker container running q/kdb+:
+Claude Code skills backed by a Python MCP server that manages a Docker container running q/kdb+:
 
 | Skill | Purpose |
 |-------|---------|
 | `/q-run` | Run arbitrary q code immediately, show raw output |
 | `/q-solve` | Solve a q problem — generates test cases, verifies solution, debugs failures |
 | `/q-debug` | Debug broken q code — diagnose error, fix, run, confirm |
+| `/generate-kxnb` | Build a kx-vscode `.kxnb` notebook from an instruction, a problem, or this conversation's q code/run_q results |
 
 ## Architecture
 
@@ -89,6 +90,7 @@ q_solver/
     q-run/SKILL.md
     q-solve/SKILL.md
     q-debug/SKILL.md
+    generate-kxnb/SKILL.md
   docker/
     Dockerfile         # multi-stage build for qtpy6969/kdb-x-runner (license stripped)
     Dockerfile.mcp     # build for qtpy6969/q-solver-mcp (the MCP server image)

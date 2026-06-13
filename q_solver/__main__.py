@@ -9,7 +9,7 @@ _PKG_DIR = Path(__file__).parent
 _SKILLS_SRC = _PKG_DIR / "skills"
 _SKILLS_DST_ROOT = Path.home() / ".claude" / "skills"
 _MCP_SERVER_NAME = "q-solver"
-_SKILL_NAMES = ["q-solve", "q-run", "q-debug"]
+_SKILL_NAMES = ["q-solve", "q-run", "q-debug", "generate-kxnb"]
 _Q_KNOWLEDGE_PLUGIN = "q-knowledge@kx-skills"
 _KX_SKILLS_MARKETPLACE = "https://github.com/KxSystems/kx-skills"
 
